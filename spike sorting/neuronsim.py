@@ -5,9 +5,10 @@ Created on Thu Apr 21 11:48:46 2022
 @author: jpv88
 """
 
-
+from elephant.spike_train_generation import NonStationaryPoissonProcess
 from elephant.spike_train_generation import StationaryPoissonProcess
 from matplotlib import cm
+from neo.core import AnalogSignal
 from scipy import stats
 from tqdm import tqdm
 
@@ -26,7 +27,6 @@ plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-
 
 
 # %%
@@ -64,6 +64,44 @@ def sim_Fv(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100,
         F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
     
     return np.mean(F_v)
+
+# simulate two neurons with PSTHs being intermixed
+def sim_Fv_PSTH(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000):
+    
+    F_v = np.zeros(N)
+    refractory_period = pq.Quantity(refractory_period, 'ms')
+    
+    n = len(PSTH_in)
+    f = n/T
+    
+    sig_in = AnalogSignal(PSTH_in, units='Hz', sampling_rate=f*pq.Hz)
+    sig_out = AnalogSignal(PSTH_out, units='Hz', sampling_rate=f*pq.Hz)
+    
+    clu_in = NonStationaryPoissonProcess(rate_signal=sig_in,
+                                         refractory_period=refractory_period)
+    clu_out = NonStationaryPoissonProcess(rate_signal=sig_out,
+                                          refractory_period=refractory_period)
+    
+    for i in tqdm(range(N)):
+        
+        spks_in = clu_in.generate_spiketrain(as_array=True)
+        spks_out = clu_out.generate_spiketrain(as_array=True)
+        
+        spks_tot = np.concatenate((spks_in, spks_out))
+        spks_tot = np.sort(spks_tot)
+        
+        ISIs = np.diff(spks_tot)
+        Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+        F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+        
+    return np.mean(F_v)
+    
+    
+    
+    
+    
+    
+    
 
 # # %%
 
