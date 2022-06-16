@@ -101,6 +101,19 @@ def norm_area(data, area, x):
     dx = x/len(data)
     data_area = np.trapz(data, dx=dx)
     return([el/(data_area/area) for el in data])
+
+def sort_list_by_list(idx_list, sort_list):
+    
+    if len(idx_list) != len(sort_list):
+        raise Exception('Lists must be of equal length')
+        
+    zipped_lists = zip(idx_list, sort_list)
+    sorted_zipped_lists = sorted(zipped_lists)
+    sorted_list = [element for _, element in sorted_zipped_lists]
+    
+    return sorted_list
+        
+    
     
     
 # %%
@@ -211,23 +224,43 @@ for idx in sessions_idx[:5]:
 
 corr_sort = sorted(corr)
 
-zipped_lists = zip(corr, PSTHs1)
-sorted_zipped_lists = sorted(zipped_lists)
-PSTHs1_sort = [element for _, element in sorted_zipped_lists]
-
-zipped_lists = zip(corr, PSTHs2)
-sorted_zipped_lists = sorted(zipped_lists)
-PSTHs2_sort = [element for _, element in sorted_zipped_lists]
+PSTHs1_sort = sort_list_by_list(corr, PSTHs1)
+PSTHs2_sort = sort_list_by_list(corr, PSTHs2)
 
 PSTHs1_norm = [norm_area(el, 100, 6) for el in PSTHs1_sort]
 PSTHs2_norm = [norm_area(el, 100, 6) for el in PSTHs2_sort]
+
+cross_corr = [np.dot(el0, el1) for el0, el1 in zip(PSTHs1_norm, PSTHs2_norm)]
+cross_corr_sort = sorted(cross_corr)
+
+PSTHs1_norm_sort = sort_list_by_list(cross_corr, PSTHs1_norm)
+PSTHs2_norm_sort = sort_list_by_list(cross_corr, PSTHs2_norm)
 
 # %%
 
 F_v_PSTH = []
 for i in range(len(PSTHs1)):
     F_v_PSTH.append(neuronsim.sim_Fv_PSTH(PSTHs1_norm[i], PSTHs2_norm[i]))
+    
+F_v_PSTH_sort = sort_list_by_list(cross_corr, F_v_PSTH)
 
+# %%
+
+corr_norm = [np.corrcoef(x, y)[0,1] for x, y in zip(PSTHs1_norm, PSTHs2_norm)] 
+
+# %%
+
+plt.scatter(cross_corr_sort, F_v_PSTH_sort, s=10)
+
+y_pred, reg = lin_reg(cross_corr_sort, F_v_PSTH_sort)
+plt.plot(cross_corr_sort, y_pred, c='r')
+
+plt.xlabel('X-Corr (AU)')
+plt.ylabel('$F_{v}$ (sim, AU)')    
+plt.xticks(fontsize=10)
+plt.yticks(fontsize=10)
+
+plt.tight_layout()
     
 # %%
 
