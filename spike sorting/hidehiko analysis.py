@@ -12,6 +12,8 @@ import neuronsim
 from scipy.signal import savgol_filter
 import matplotlib.cm as cm
 import math
+import pickle
+import os
 
 from tqdm import tqdm
 from sklearn.linear_model import LinearRegression
@@ -112,8 +114,23 @@ def sort_list_by_list(idx_list, sort_list):
     sorted_list = [element for _, element in sorted_zipped_lists]
     
     return sorted_list
-        
+
+def pickle_load_file(file):
+    with open(file, 'rb') as pickle_file:
+        var_name = file[:-7]
+        globals()[var_name] = pickle.load(pickle_file)
+   
+def pickle_load_dir(directory=os.getcwd()):
     
+    files = os.listdir(directory)
+    
+    for file in files:
+        if file[-7:] == '.pickle':
+            pickle_load_file(file)
+
+@np.vectorize
+def lin_eq(m, b, x):
+    return m*x + b
     
     
 # %%
@@ -130,6 +147,7 @@ CV1 = []
 CV2 = []
 PSTHs1 = []
 PSTHs2 = []
+RviolPSTH = []
 Rtots1 = []
 Rtots2 = []
 
@@ -164,6 +182,8 @@ for idx in sessions_idx[:5]:
         spks2_tot = 0
         spks1_all = []
         spks2_all = []
+        Rviol1_all = []
+        Rviol2_all = []
         ISIs_all = []
         ISIs1_all = []
         ISIs2_all = []
@@ -186,6 +206,11 @@ for idx in sessions_idx[:5]:
             ISIs = np.diff(spks_tot)
             if ISIs.size != 0:
                 ISIs_all.extend(ISIs)
+            ISIv = []
+            for m, spk in enumerate(spks_tot):
+                if abs(spk - spks_tot[m-1]) < t_viol:
+                    ISIv.append(spk)
+
             # current_CV = np.std(ISIs)/np.mean(ISIs)
             # if not math.isnan(current_CV):
             #     CVpertrial.append(current_CV)
@@ -227,8 +252,8 @@ corr_sort = sorted(corr)
 PSTHs1_sort = sort_list_by_list(corr, PSTHs1)
 PSTHs2_sort = sort_list_by_list(corr, PSTHs2)
 
-PSTHs1_norm = [norm_area(el, 100, 6) for el in PSTHs1_sort]
-PSTHs2_norm = [norm_area(el, 100, 6) for el in PSTHs2_sort]
+PSTHs1_norm = [norm_area(el, 200, 6) for el in PSTHs1_sort]
+PSTHs2_norm = [norm_area(el, 200, 6) for el in PSTHs2_sort]
 
 cross_corr = [np.dot(el0, el1) for el0, el1 in zip(PSTHs1_norm, PSTHs2_norm)]
 cross_corr_sort = sorted(cross_corr)
@@ -238,22 +263,88 @@ PSTHs2_norm_sort = sort_list_by_list(cross_corr, PSTHs2_norm)
 
 # %%
 
-F_v_PSTH = []
-for i in range(len(PSTHs1)):
-    F_v_PSTH.append(neuronsim.sim_Fv_PSTH(PSTHs1_norm[i], PSTHs2_norm[i]))
+F_v_change_amp = []
+FDR = []
+Rtot = []
+
+for i in range(20,21):
+    for j in np.linspace(50, 200, 5):
+        norm1 = norm_area(PSTHs1_sort[i], j, 6)
+        norm2 = norm_area(PSTHs2_sort[i], j, 6)
+        F_v_temp, FDR_temp, Rtot_temp = neuronsim.sim_Fv_PSTH(norm1, norm2, 
+                                                              FPR=0.2) 
+        F_v_change_amp.append(F_v_temp)
+        FDR.append(FDR_temp) 
+        Rtot.append(Rtot_temp)
+            
+        
+y_pred, reg = lin_reg(Rtot, F_v_change_amp)
+plt.scatter(Rtot, F_v_change_amp)
+plt.plot(Rtot, y_pred)
+print(reg.coef_)
+print(np.mean(FDR) * 0.0025 * (3/2))
     
-F_v_PSTH_sort = sort_list_by_list(cross_corr, F_v_PSTH)
+        
+# %% is Fv still linear with respect to firing rate if I change FDR, and if
+# so, wrt to what? total firing rate, firing rate in cluster, out of cluster,
+# etc. (what about different PSTH shapes)
+
+F_v_change_FDR = []
+FDR = []
+Rtot = []
+
+i = 0
+norm1 = norm_area(PSTHs1_sort[i], 200, 6)
+norm2 = norm_area(PSTHs2_sort[i], 200, 6)
+for i in np.linspace(0, 0.9, 5):
+    F_v_temp, FDR_temp, Rtot_temp = neuronsim.sim_Fv_PSTH(norm1, norm2, FPR=i) 
+    F_v_change_FDR.append(F_v_temp)
+    FDR.append(FDR_temp) 
+    Rtot.append(Rtot_temp)
+    
+y_pred, reg = lin_reg(Rtot, F_v_change_FDR)
+plt.scatter(Rtot, F_v_change_FDR)
+plt.plot(Rtot, y_pred)
+print(reg.coef_)
+
+
+        
+# %%
+F_v_change_FDR = []
+FDR = []
+for i in np.linspace(0, 1, 100):
+    F_v_temp, FDR_temp = neuronsim.sim_Fv(10, 10, FPR=i) 
+    F_v_change_FDR.append(F_v_temp)
+    FDR.append(FDR_temp) 
+      
 
 # %%
 
-corr_norm = [np.corrcoef(x, y)[0,1] for x, y in zip(PSTHs1_norm, PSTHs2_norm)] 
+F_v_PSTH = []
+FDR = []
+Rtot = []
+for i in range(20):
+    F_v_temp, FDR_temp, Rtot_temp = neuronsim.sim_Fv_PSTH(PSTHs1_norm[i], 
+                                                          PSTHs2_norm[i], 
+                                                          out_refrac=2.5,
+                                                          FPR=1) 
+    F_v_PSTH.append(F_v_temp)
+    FDR.append(FDR_temp) 
+    Rtot.append(Rtot_temp)
+    
+F_v_PSTH_sort = sort_list_by_list(cross_corr[:20], F_v_PSTH)
+
 
 # %%
 
-plt.scatter(cross_corr_sort, F_v_PSTH_sort, s=10)
+plt.scatter(cross_corr_sort[:20], F_v_PSTH_sort, s=10)
 
-y_pred, reg = lin_reg(cross_corr_sort, F_v_PSTH_sort)
-plt.plot(cross_corr_sort, y_pred, c='r')
+y_pred, reg = lin_reg(cross_corr_sort[:20], F_v_PSTH_sort)
+plt.plot(cross_corr_sort[:20], y_pred, c='r')
+
+x = [10000, 15000]
+test = lin_eq(0.0025**2, 0, x)
+plt.plot(x, test)
 
 plt.xlabel('X-Corr (AU)')
 plt.ylabel('$F_{v}$ (sim, AU)')    
@@ -478,13 +569,12 @@ def economo_eq(Rtot, F_v, tviol=0.0025):
 
     return fp
 
-fps = economo_eq(Rtot, F_v)
+# fps = economo_eq(Rtot, F_v)
 
-# %%  
-
-
-
-plt.boxplot(np.column_stack((Rtot, F_v, fps)))
+def integrate_test(Rtot, Rviol, tau):
+    y = ((Rtot**2) - Rviol/tau)**(1/2)
+    integral = np.trapz(y, dx=6/100)
+    return integral
 
 
 

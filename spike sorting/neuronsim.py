@@ -9,12 +9,15 @@ from elephant.spike_train_generation import NonStationaryPoissonProcess
 from elephant.spike_train_generation import StationaryPoissonProcess
 from matplotlib import cm
 from neo.core import AnalogSignal
+from random import sample
 from scipy import stats
 from tqdm import tqdm
 
+import itertools
 import matplotlib.pyplot as plt
 import numpy as np
 import quantities as pq
+import JV_utils
 
 SMALL_SIZE = 9
 MEDIUM_SIZE = 13
@@ -32,9 +35,22 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 # %%
 
 def sim_Fv(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100, 
-           out_refrac=0):
+           out_refrac=0, FDR=None):
+    
+    
+    FDR_max = rate_out/(rate_in + rate_out)
+    # if FDR wasn't specified, set it to its maximum possible value
+    if FDR == None:
+        FDR = FDR_max
+    if FDR > FDR_max:
+        raise Exception('Input FDR is not possible')
+        
+    fp = round((FDR*rate_in)/(1 - FDR))*t_stop
     
     F_v = np.zeros(N)
+    FDR_rec = np.zeros(N)
+    Rtot = np.zeros(N)
+    
     rate_in = pq.Quantity(rate_in, 'Hz')
     rate_out = pq.Quantity(rate_out, 'Hz')
     t_stop = pq.Quantity(t_stop, 's')
@@ -50,6 +66,311 @@ def sim_Fv(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100,
         clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop,
                                            refractory_period=out_refrac)
     
+    if FDR == FDR_max:
+        desc = "R_in = " + str(rate_in) + ", R_out = " + str(rate_out)
+        for i in tqdm(range(N), desc=desc):
+            
+            spks_in = clu_in.generate_spiketrain(as_array=True)
+            spks_out = clu_out.generate_spiketrain(as_array=True)
+            
+            spks_tot = np.concatenate((spks_in, spks_out))
+            spks_tot = np.sort(spks_tot)
+            
+            ISIs = np.diff(spks_tot)
+            Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+            F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+            FDR_rec[i] = len(spks_out)/len(spks_tot)
+            Rtot[i] = len(spks_tot)/t_stop
+        
+        return np.mean(F_v), np.mean(FDR_rec), np.mean(Rtot)
+        
+       
+    elif FDR != FDR_max:
+        desc = "R_in = " + str(rate_in) + ", R_out = " + str(rate_out)
+        for i in tqdm(range(N), desc=desc):
+            
+            spks_in = clu_in.generate_spiketrain(as_array=True)
+            spks_out = clu_out.generate_spiketrain(as_array=True)
+            
+            
+            spks_out_sample = sample(list(spks_out), fp)
+            spks_out_sample = np.array(spks_out_sample)
+            
+            spks_tot = np.concatenate((spks_in, spks_out_sample))
+            spks_tot = np.sort(spks_tot)
+            
+            ISIs = np.diff(spks_tot)
+            Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+            F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+            FDR_rec[i] = len(spks_out_sample)/len(spks_tot)
+            Rtot[i] = len(spks_tot)/t_stop
+            
+        return np.mean(F_v), np.mean(FDR_rec), np.mean(Rtot)
+        
+    
+
+# simulate two neurons with PSTHs being intermixed
+def sim_Fv_PSTH(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000, 
+                out_refrac=0, FPR=1):
+    
+    F_v = np.zeros(N)
+    FDR = np.zeros(N)
+    Rtot = np.zeros(N)
+    
+    refractory_period = pq.Quantity(refractory_period, 'ms')
+    
+    n = len(PSTH_in)
+    f = n/T
+    
+    if out_refrac != 0:
+        out_refrac = pq.Quantity(out_refrac, 'ms')
+    
+    sig_in = AnalogSignal(PSTH_in, units='Hz', sampling_rate=f*pq.Hz)
+    sig_out = AnalogSignal(PSTH_out, units='Hz', sampling_rate=f*pq.Hz)
+    
+    clu_in = NonStationaryPoissonProcess(rate_signal=sig_in,
+                                         refractory_period=refractory_period)
+    
+    clu_out = NonStationaryPoissonProcess(rate_signal=sig_out)
+    if out_refrac != 0:
+        clu_out = NonStationaryPoissonProcess(rate_signal=sig_out,
+                                              refractory_period=out_refrac)
+    if FPR == 1:
+        
+        for i in tqdm(range(N)):
+            
+            spks_in = clu_in.generate_spiketrain(as_array=True)
+            spks_out = clu_out.generate_spiketrain(as_array=True)
+            
+            spks_tot = np.concatenate((spks_in, spks_out))
+            spks_tot = np.sort(spks_tot)
+            
+            ISIs = np.diff(spks_tot)
+            Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+            F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+            FDR[i] = len(spks_out)/len(spks_tot)
+            Rtot[i] = len(spks_tot)/T
+            
+        return np.mean(F_v), np.mean(FDR), np.mean(Rtot)
+    
+    if FPR != 1:
+        for i in tqdm(range(N)):
+            
+            spks_in = clu_in.generate_spiketrain(as_array=True)
+            spks_out = clu_out.generate_spiketrain(as_array=True)
+            
+            samples = round(FPR*len(spks_out))
+            spks_out_sample = sample(list(spks_out), samples)
+            spks_out_sample = np.array(spks_out_sample)
+            
+            spks_tot = np.concatenate((spks_in, spks_out_sample))
+            spks_tot = np.sort(spks_tot)
+            
+            ISIs = np.diff(spks_tot)
+            Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+            F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+            FDR[i] = len(spks_out_sample)/len(spks_tot)
+            Rtot[i] = len(spks_tot)/T
+            
+        return np.mean(F_v), np.mean(FDR), np.mean(Rtot)
+    
+def sim_Fv_times(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100, 
+                 out_refrac=0, FDR=None): 
+    
+    refrac = refractory_period * 0.001
+    t_stop_val = t_stop
+    
+    FDR_max = rate_out/(rate_in + rate_out)
+    
+    # if FDR wasn't specified, set it to its maximum possible value
+    if FDR == None:
+        FDR = FDR_max
+    if FDR > FDR_max:
+        raise Exception('Input FDR is not possible')
+        
+    if rate_in != 0:
+        fp = round((FDR*rate_in)/(1 - FDR))*t_stop
+    
+    F_v = np.zeros(N)
+    FDR_rec = np.zeros(N)
+    Rtot = np.zeros(N)
+    bad_time = np.zeros(N)
+    
+    rate_in = pq.Quantity(rate_in, 'Hz')
+    rate_out = pq.Quantity(rate_out, 'Hz')
+    t_stop = pq.Quantity(t_stop, 's')
+    refractory_period = pq.Quantity(refractory_period, 'ms')
+    if out_refrac != 0:
+        out_refrac = pq.Quantity(out_refrac, 'ms')
+        
+    clu_in = StationaryPoissonProcess(rate=rate_in, t_stop=t_stop, 
+                                      refractory_period=refractory_period)
+    
+    clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop)
+    if out_refrac != 0:
+        clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop,
+                                           refractory_period=out_refrac)
+    
+    if FDR == FDR_max:
+        desc = "R_in = " + str(rate_in) + ", R_out = " + str(rate_out)
+        for i in tqdm(range(N), desc=desc):
+            
+            spks_in = clu_in.generate_spiketrain(as_array=True)
+            spks_out = clu_out.generate_spiketrain(as_array=True)
+            
+            spks_tot = np.concatenate((spks_in, spks_out))
+            spks_tot = np.sort(spks_tot)
+            
+            ISIs = np.diff(spks_tot)
+            Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+            F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+            FDR_rec[i] = len(spks_out)/len(spks_tot)
+            Rtot[i] = len(spks_tot)/t_stop
+            
+            arr = []
+            for spk in spks_tot:
+                if spk-refrac < 0:
+                    arr.append([0, spk+refrac])
+                elif spk+refrac > t_stop_val:
+                    arr.append([spk-refrac, t_stop_val])
+                else:
+                    arr.append([spk-refrac, spk+refrac])
+                
+            # Stores index of last element
+            # in output array (modified arr[])
+            index = 0
+          
+            # Traverse all input Intervals starting from
+            # second interval
+            for j in range(1, len(arr)):
+          
+                # If this is not first Interval and overlaps
+                # with the previous one, Merge previous and
+                # current Intervals
+                if (arr[index][1] >= arr[j][0]):
+                    arr[index][1] = max(arr[index][1], arr[j][1])
+                else:
+                    index = index + 1
+                    arr[index] = arr[j]
+            
+            arr_bad_time = 0
+            for interval in arr:
+                arr_bad_time += interval[1] - interval[0]
+            bad_time[i] = arr_bad_time/t_stop_val
+        
+        return np.mean(F_v), np.mean(FDR_rec), np.mean(Rtot), np.mean(bad_time)
+        
+       
+    elif FDR != FDR_max:
+        desc = "R_in = " + str(rate_in) + ", R_out = " + str(rate_out)
+        for i in tqdm(range(N), desc=desc):
+            
+            spks_in = clu_in.generate_spiketrain(as_array=True)
+            spks_out = clu_out.generate_spiketrain(as_array=True)
+            
+            
+            spks_out_sample = sample(list(spks_out), fp)
+            spks_out_sample = np.array(spks_out_sample)
+            
+            spks_tot = np.concatenate((spks_in, spks_out_sample))
+            spks_tot = np.sort(spks_tot)
+            
+            ISIs = np.diff(spks_tot)
+            Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+            F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+            FDR_rec[i] = len(spks_out_sample)/len(spks_tot)
+            Rtot[i] = len(spks_tot)/t_stop
+            
+        return np.mean(F_v), np.mean(FDR_rec), np.mean(Rtot)
+    
+def sim_Fv_overlap(rate_out, t_stop=1000, refractory_period=2.5, N=100, 
+                 out_refrac=0, FDR=None): 
+    
+    refrac = refractory_period * 0.001
+    t_stop_val = t_stop
+    
+    F_v = np.zeros(N)
+    FDR_rec = np.zeros(N)
+    Rtot = np.zeros(N)
+    overlap = np.zeros(N)
+    
+    rate_out = pq.Quantity(rate_out, 'Hz')
+    t_stop = pq.Quantity(t_stop, 's')
+    refractory_period = pq.Quantity(refractory_period, 'ms')
+    if out_refrac != 0:
+        out_refrac = pq.Quantity(out_refrac, 'ms')
+    
+    clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop)
+    if out_refrac != 0:
+        clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop,
+                                           refractory_period=out_refrac)
+    
+    def getOverlap(a, b):
+        return max(0, min(a[1], b[1]) - max(a[0], b[0]))
+    
+    desc = "R_out = " + str(rate_out)
+    for i in tqdm(range(N), desc=desc):
+    
+        spks_out = clu_out.generate_spiketrain(as_array=True)
+        
+        spks_tot = spks_out
+        spks_tot = np.sort(spks_tot)
+        
+        ISIs = np.diff(spks_tot)
+        Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+        F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+        FDR_rec[i] = len(spks_out)/len(spks_tot) if len(spks_tot) !=0 else 0
+        Rtot[i] = len(spks_tot)/t_stop
+        
+        arr = []
+        for spk in spks_tot:
+            if spk-refrac < 0:
+                arr.append([0, spk+refrac])
+            elif spk+refrac > t_stop_val:
+                arr.append([spk-refrac, t_stop_val])
+            else:
+                arr.append([spk-refrac, spk+refrac])
+       
+        overlap_trial = 0
+        for a, b in itertools.combinations(arr, 2):
+            overlap_trial += getOverlap(a, b)
+            
+        overlap[i] = overlap_trial/t_stop_val
+           
+    
+    return np.mean(F_v), np.mean(FDR_rec), np.mean(Rtot), np.mean(overlap)
+
+def sim_Fv_overlap2(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100, 
+                 out_refrac=0): 
+    
+    refrac = refractory_period * 0.001
+    t_stop_val = t_stop
+        
+    
+    F_v = np.zeros(N)
+    FDR_rec = np.zeros(N)
+    Rtot = np.zeros(N)
+    overlap = np.zeros(N)
+    
+    rate_in = pq.Quantity(rate_in, 'Hz')
+    rate_out = pq.Quantity(rate_out, 'Hz')
+    t_stop = pq.Quantity(t_stop, 's')
+    refractory_period = pq.Quantity(refractory_period, 'ms')
+    if out_refrac != 0:
+        out_refrac = pq.Quantity(out_refrac, 'ms')
+        
+    clu_in = StationaryPoissonProcess(rate=rate_in, t_stop=t_stop, 
+                                      refractory_period=refractory_period)
+    
+    clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop)
+    if out_refrac != 0:
+        clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop,
+                                           refractory_period=out_refrac)
+        
+    def getOverlap(a, b):
+        return max(0, min(a[1], b[1]) - max(a[0], b[0]))
+    
+    
     desc = "R_in = " + str(rate_in) + ", R_out = " + str(rate_out)
     for i in tqdm(range(N), desc=desc):
         
@@ -62,27 +383,68 @@ def sim_Fv(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100,
         ISIs = np.diff(spks_tot)
         Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
         F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+        FDR_rec[i] = len(spks_out)/len(spks_tot)
+        Rtot[i] = len(spks_tot)/t_stop
+        
+        arr_in = []
+        for spk in spks_in:
+            if spk-refrac < 0:
+                arr_in.append([0, spk+refrac])
+            elif spk+refrac > t_stop_val:
+                arr_in.append([spk-refrac, t_stop_val])
+            else:
+                arr_in.append([spk-refrac, spk+refrac])
+        
+        arr_out = []
+        for spk in spks_out:
+            if spk-refrac < 0:
+                arr_out.append([0, spk+refrac])
+            elif spk+refrac > t_stop_val:
+                arr_out.append([spk-refrac, t_stop_val])
+            else:
+                arr_out.append([spk-refrac, spk+refrac])
+            
+        overlap_trial = 0
+        for a, b in itertools.product(arr_in, arr_out):
+            overlap_trial += getOverlap(a, b)
+            
+        overlap[i] = overlap_trial/t_stop_val
     
-    return np.mean(F_v)
+    return np.mean(F_v), np.mean(FDR_rec), np.mean(Rtot), np.mean(overlap)
 
-# simulate two neurons with PSTHs being intermixed
-def sim_Fv_PSTH(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000):
+def sim_Fv_overlap2(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100, 
+                 out_refrac=0): 
+    
+    refrac = refractory_period * 0.001
+    t_stop_val = t_stop
+        
     
     F_v = np.zeros(N)
+    FDR_rec = np.zeros(N)
+    Rtot = np.zeros(N)
+    overlap = np.zeros(N)
+    
+    rate_in = pq.Quantity(rate_in, 'Hz')
+    rate_out = pq.Quantity(rate_out, 'Hz')
+    t_stop = pq.Quantity(t_stop, 's')
     refractory_period = pq.Quantity(refractory_period, 'ms')
+    if out_refrac != 0:
+        out_refrac = pq.Quantity(out_refrac, 'ms')
+        
+    clu_in = StationaryPoissonProcess(rate=rate_in, t_stop=t_stop, 
+                                      refractory_period=refractory_period)
     
-    n = len(PSTH_in)
-    f = n/T
+    clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop)
+    if out_refrac != 0:
+        clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop,
+                                           refractory_period=out_refrac)
+        
+    def getOverlap(a, b):
+        return max(0, min(a[1], b[1]) - max(a[0], b[0]))
     
-    sig_in = AnalogSignal(PSTH_in, units='Hz', sampling_rate=f*pq.Hz)
-    sig_out = AnalogSignal(PSTH_out, units='Hz', sampling_rate=f*pq.Hz)
     
-    clu_in = NonStationaryPoissonProcess(rate_signal=sig_in,
-                                         refractory_period=refractory_period)
-    clu_out = NonStationaryPoissonProcess(rate_signal=sig_out,
-                                          refractory_period=refractory_period)
-    
-    for i in tqdm(range(N)):
+    desc = "R_in = " + str(rate_in) + ", R_out = " + str(rate_out)
+    for i in tqdm(range(N), desc=desc):
         
         spks_in = clu_in.generate_spiketrain(as_array=True)
         spks_out = clu_out.generate_spiketrain(as_array=True)
@@ -93,9 +455,34 @@ def sim_Fv_PSTH(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000):
         ISIs = np.diff(spks_tot)
         Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
         F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+        FDR_rec[i] = len(spks_out)/len(spks_tot)
+        Rtot[i] = len(spks_tot)/t_stop
         
-    return np.mean(F_v)
+        arr_in = []
+        for spk in spks_in:
+            if spk-refrac < 0:
+                arr_in.append([0, spk+refrac])
+            elif spk+refrac > t_stop_val:
+                arr_in.append([spk-refrac, t_stop_val])
+            else:
+                arr_in.append([spk-refrac, spk+refrac])
+        
+        arr_out = []
+        for spk in spks_out:
+            if spk-refrac < 0:
+                arr_out.append([0, spk+refrac])
+            elif spk+refrac > t_stop_val:
+                arr_out.append([spk-refrac, t_stop_val])
+            else:
+                arr_out.append([spk-refrac, spk+refrac])
+            
+        overlap_trial = 0
+        for a, b in itertools.product(arr_in, arr_out):
+            overlap_trial += getOverlap(a, b)
+            
+        overlap[i] = overlap_trial/t_stop_val
     
+    return np.mean(F_v), np.mean(FDR_rec), np.mean(Rtot), np.mean(overlap)
     
     
     
