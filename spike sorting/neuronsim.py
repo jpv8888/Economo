@@ -412,81 +412,35 @@ def sim_Fv_overlap2(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100
     
     return np.mean(F_v), np.mean(FDR_rec), np.mean(Rtot), np.mean(overlap)
 
-def sim_Fv_overlap2(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100, 
-                 out_refrac=0): 
-    
-    refrac = refractory_period * 0.001
-    t_stop_val = t_stop
-        
-    
-    F_v = np.zeros(N)
-    FDR_rec = np.zeros(N)
-    Rtot = np.zeros(N)
-    overlap = np.zeros(N)
+def sim_effective_refrac(rate_in, neurons=1, t_stop=1000, 
+                         refractory_period=2.5, N=100): 
     
     rate_in = pq.Quantity(rate_in, 'Hz')
-    rate_out = pq.Quantity(rate_out, 'Hz')
     t_stop = pq.Quantity(t_stop, 's')
     refractory_period = pq.Quantity(refractory_period, 'ms')
-    if out_refrac != 0:
-        out_refrac = pq.Quantity(out_refrac, 'ms')
+    
+    ISIs_tot = []
+
         
     clu_in = StationaryPoissonProcess(rate=rate_in, t_stop=t_stop, 
                                       refractory_period=refractory_period)
     
-    clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop)
-    if out_refrac != 0:
-        clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop,
-                                           refractory_period=out_refrac)
-        
-    def getOverlap(a, b):
-        return max(0, min(a[1], b[1]) - max(a[0], b[0]))
-    
-    
-    desc = "R_in = " + str(rate_in) + ", R_out = " + str(rate_out)
+    desc = "R_in = " + str(rate_in) + ", N = " + str(neurons)
     for i in tqdm(range(N), desc=desc):
         
-        spks_in = clu_in.generate_spiketrain(as_array=True)
-        spks_out = clu_out.generate_spiketrain(as_array=True)
-        
-        spks_tot = np.concatenate((spks_in, spks_out))
+        spks_tot = []
+        for j in range(neurons):
+            spks_in = clu_in.generate_spiketrain(as_array=True)
+            spks_tot.extend(spks_in)
+            
         spks_tot = np.sort(spks_tot)
         
         ISIs = np.diff(spks_tot)
-        Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
-        F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
-        FDR_rec[i] = len(spks_out)/len(spks_tot)
-        Rtot[i] = len(spks_tot)/t_stop
-        
-        arr_in = []
-        for spk in spks_in:
-            if spk-refrac < 0:
-                arr_in.append([0, spk+refrac])
-            elif spk+refrac > t_stop_val:
-                arr_in.append([spk-refrac, t_stop_val])
-            else:
-                arr_in.append([spk-refrac, spk+refrac])
-        
-        arr_out = []
-        for spk in spks_out:
-            if spk-refrac < 0:
-                arr_out.append([0, spk+refrac])
-            elif spk+refrac > t_stop_val:
-                arr_out.append([spk-refrac, t_stop_val])
-            else:
-                arr_out.append([spk-refrac, spk+refrac])
-            
-        overlap_trial = 0
-        for a, b in itertools.product(arr_in, arr_out):
-            overlap_trial += getOverlap(a, b)
-            
-        overlap[i] = overlap_trial/t_stop_val
+        ISIs_tot.extend(ISIs)
     
-    return np.mean(F_v), np.mean(FDR_rec), np.mean(Rtot), np.mean(overlap)
+    ISIs_tot = sorted(ISIs_tot)
     
-    
-    
-    
+    return np.histogram(ISIs_tot, bins=np.arange(0, 2.0025, 0.0025))[0]
     
     
 
