@@ -9,6 +9,7 @@ import numpy as np
 import pickle
 import os
 
+from scipy.stats import t
 from sklearn.linear_model import LinearRegression
 
 # little n is number of trials, big N is number of bins
@@ -93,3 +94,22 @@ def pickle_load_dir(directory=os.getcwd()):
 @np.vectorize
 def lin_eq(m, b, x):
     return m*x + b
+
+def ci_95(sample):
+    N = len(sample)
+    df = N - 1
+    std = np.std(sample)
+    mean = np.mean(sample)
+    low = t.ppf(0.025, df, loc=mean, scale=std)
+    high = t.ppf(0.975, df, loc=mean, scale=std)
+    bounds = [low, high]
+    
+    return bounds
+    
+    
+    
+    
+    
+    
+    
+    

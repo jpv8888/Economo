@@ -64,7 +64,6 @@ for val in np.unique(windows):
     windows_avg.append(val)
     windows_std.append(np.std(viol_times[idx_mask]))
     
-    
 x = [0, 0.42]
 y = [el for el in x]
 plt.plot(x, y, ls='--', c='k')

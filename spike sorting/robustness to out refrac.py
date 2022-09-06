@@ -182,12 +182,12 @@ Rtot = []
 true_FDRs = []
 FDR_eqs = []
 
-refracs = [0, 2.5]
+refracs = [0, 1, 2, 2.5]
 
 # R_tot = range(5, 10)
 # FDR_range = np.arange(0.1, 1, 0.1)
-R_in_range = list(range(10, 20))
-R_out_range = list(range(5, 8))
+R_in_range = [5, 10, 15, 20, 25]
+R_out_range = [2.5, 5, 7.5, 10, 12.5]
 R_tot_actual = []
 
 # for i in R_in_range:
@@ -219,32 +219,56 @@ R_tot_actual = []
 #     FDR_eqs.append(FDR_eq)
     
 F_v_sim_temp2 = []
-for R_in in R_in_range:
-    for R_out in R_out_range:
-        FDR_eq = []
-        FDR = []
-        F_v_sim_temp1 = []
-        R_tot_actual.append(R_in + R_out)
-        for k in refracs:
-            F_v_temp, FDR_temp, Rtot_temp = neuronsim.sim_Fv(R_in, R_out, 
-                                                             out_refrac=k, 
-                                                             t_stop=1000) 
-            FDR_eq_temp = []
-            FDR_eq_temp.append(economo_eq(R_in + R_out, F_v_temp).item())
-            FDR_eq_temp.append(kleinfeld_eq(R_in + R_out, F_v_temp).item())
-            FDR_eq.append(FDR_eq_temp)
-            FDR.append(FDR_temp) 
-            F_v_sim_temp1.append(F_v_temp)
-            
-        true_FDRs.append(np.mean(FDR))
-        FDR_eqs.append(FDR_eq)
-        F_v_sim_temp2.append(F_v_sim_temp1)
+for i in range(len(R_in_range)):
+
+    R_in = R_in_range[i]
+    R_out = R_out_range[i]
+    FDR_eq = []
+    FDR = []
+    F_v_sim_temp1 = []
+    R_tot_actual.append(R_in + R_out)
+    for k in refracs:
+        F_v_temp, FDR_temp, Rtot_temp = neuronsim.sim_Fv(R_in, R_out, 
+                                                         out_refrac=k, 
+                                                         t_stop=1000, 
+                                                         N=20) 
+        FDR_eq_temp = []
+        FDR_eq_temp.append(economo_eq(R_in + R_out, F_v_temp).item())
+        FDR_eq_temp.append(kleinfeld_eq(R_in + R_out, F_v_temp).item())
+        FDR_eq.append(FDR_eq_temp)
+        FDR.append(FDR_temp) 
+        F_v_sim_temp1.append(F_v_temp)
+        
+    true_FDRs.append(np.mean(FDR))
+    FDR_eqs.append(FDR_eq)
+    F_v_sim_temp2.append(F_v_sim_temp1)
         
 # %%
 
 
-F_v = np.arange(0, 0.038, 0.001)
-R_tot = [30] * len(F_v)
+fig, ax = plt.subplots()
+top = [el[3] for el in F_v_sim_temp2]
+bot = [el[0] for el in F_v_sim_temp2]
+ax.plot(R_tot_actual, top, lw=2)
+ax.plot(R_tot_actual, bot, lw=2)
+mid1 = [el[1] for el in F_v_sim_temp2]
+mid2 = [el[2] for el in F_v_sim_temp2]
+ax.scatter(R_tot_actual, mid1, c='k')
+ax.scatter(R_tot_actual, mid2, c='k')
+
+
+plt.xlabel('$R_{tot}$ (Hz)', fontsize=14)
+plt.ylabel('$F_{v}$', fontsize=14)
+
+plt.title("τ = 0 and τ = 2.5 ms bound all other $F_{v}$'s", fontsize=18)
+plt.xticks(fontsize=12)
+plt.yticks(fontsize=12)
+plt.tight_layout()
+# %%
+
+
+F_v = np.arange(0, 0.017, 0.001)
+R_tot = [10] * len(F_v)
 
 economo = economo_eq(R_tot, F_v)
 kleinfeld = kleinfeld_eq(R_tot, F_v)
@@ -257,7 +281,7 @@ ax.fill_between(F_v, economo, kleinfeld, alpha=0.25)
 plt.xlabel('$F_{v}$', fontsize=14)
 plt.ylabel('FDR', fontsize=14)
 
-plt.title("$R_{tot}$ = 30 Hz", fontsize=18)
+plt.title("$R_{tot}$ = 10 Hz", fontsize=18)
 plt.xticks(fontsize=12)
 plt.yticks(fontsize=12)
 plt.tight_layout()

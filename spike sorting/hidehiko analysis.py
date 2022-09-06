@@ -6,8 +6,8 @@ Created on Mon May 16 16:18:30 2022
 """
 
 import matplotlib.pyplot as plt
-import numpy as np
 from scipy import stats
+import numpy as np
 import neuronsim
 from scipy.signal import savgol_filter
 import matplotlib.cm as cm
@@ -260,6 +260,20 @@ cross_corr_sort = sorted(cross_corr)
 
 PSTHs1_norm_sort = sort_list_by_list(cross_corr, PSTHs1_norm)
 PSTHs2_norm_sort = sort_list_by_list(cross_corr, PSTHs2_norm)
+
+# %%
+
+idx = 32
+t = np.linspace(0, 6, 100)
+plt.plot(t, PSTHs1[idx], lw=2)
+plt.plot(t, PSTHs2[idx], lw=2)
+
+plt.xlabel('t (s)', fontsize=14)
+plt.ylabel('f (Hz)', fontsize=14)
+
+plt.xticks(fontsize=12)
+plt.yticks(fontsize=12)
+plt.tight_layout()
 
 # %%
 
