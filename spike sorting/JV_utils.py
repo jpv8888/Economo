@@ -8,6 +8,7 @@ Created on Tue Jun 28 12:11:37 2022
 import numpy as np
 import pickle
 import os
+import scipy
 
 from scipy.stats import t
 from sklearn.linear_model import LinearRegression
@@ -105,6 +106,25 @@ def ci_95(sample):
     bounds = [low, high]
     
     return bounds
+
+def smooth_max(x, y):
+    # first, make a function to linearly interpolate the data
+    f = scipy.interpolate.interp1d(x, y)
+    
+    # resample with 1000 samples
+    xx = np.linspace(x[0], x[-1], 1000)
+    
+    # compute the function on this finer interval
+    yy = f(xx)
+    
+    # make a gaussian window
+    window = scipy.signal.gaussian(200, 60)
+    
+    # convolve the arrays
+    smoothed = scipy.signal.convolve(yy, window/window.sum(), mode='same')
+    
+    # get the maximum
+    return xx[np.argmax(smoothed)]
     
     
     

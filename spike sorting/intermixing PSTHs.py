@@ -58,14 +58,48 @@ def economo_Fv(Rin, Rout, tviol=0.0025):
 
     return Fv
 
+def economo_PSTH(Rtot, Rout, Fv, tviol=0.0025):
+    mag_Rtot = np.linalg.norm(Rtot)
+    mag_Rout = np.linalg.norm(Rout)
+    avg_Rtot = np.average(Rtot)
+    avg_Rviol = avg_Rtot*Fv
+    # Rviol_mag = np.linalg.norm(Rviol)
+    
+    Rtot_unit = np.array(Rtot)/mag_Rtot
+    Rout_unit = np.array(Rout)/mag_Rout
+    D = np.dot(Rtot_unit, Rout_unit)
+    
+    a = -1/2
+    b = mag_Rtot*D
+    c = -avg_Rviol/(2*tviol)
+    
+    predRout_mag = (-b + (b**2 - 4*a*c)**(1/2))/(2*a)
+    actual_Rout = predRout_mag*np.array(Rout_unit)
+    predRout = np.average(actual_Rout)
+    
+    FDR = predRout/avg_Rtot
+    #FDR = predRout
+    
+    return FDR
+    
+    
+
 main_idx = 25
 for i in list(range(len(PSTHs1)))[:main_idx] + list(range(len(PSTHs1)))[main_idx+1:]:
-    Fv_temp, Rtot_temp = neuronsim.sim_Fv_PSTH2(PSTHs1[main_idx], PSTHs1[i], FDR=0.05)
+    Fv_temp, Rtot_temp = neuronsim.sim_Fv_PSTH2(PSTHs1[main_idx], PSTHs1[i], FDR=0.1)
     sim_Fv.append(Fv_temp)
     sim_Rtot.append(Rtot_temp)
     
-eq_Fv = economo_Fv(np.mean(PSTHs1[main_idx]), 0.05*np.mean(PSTHs1[main_idx]))
+# %%
+
+# eq_Fv = economo_Fv(np.mean(PSTHs1[main_idx]), 0.05*np.mean(PSTHs1[main_idx]))
+
+pred_FDR = []
+for i in list(range(len(PSTHs1)))[:main_idx] + list(range(len(PSTHs1)))[main_idx+1:]:
+    F_v_locs, Fv_temp, Rtot_temp = neuronsim.sim_Fv_PSTH2(PSTHs1[main_idx], PSTHs1[i], FDR=0.5)
+    pred_FDR.append(economo_PSTH(PSTHs1[main_idx], PSTHs1[i], Fv_temp))
     
+# %% 
 plt.figure()
 plt.hist(sim_Fv)
 plt.title('Fv sim, Rtot = 15.3 Hz, FDR = 5%', fontsize=18)
@@ -112,7 +146,7 @@ def economo_old(Rtot, F_v, tviol=0.0025):
 
 def economo_Fv(Rin, Rout, tviol=0.0025):
 
-    Rviol = 2*tviol*Rin*Rout + 0.5*Rin*Rout*2*tviol
+    Rviol = 2*tviol*Rin*Rout + 0.5*Rout*Rout*2*tviol
     Fv = Rviol/(Rin + Rout)
 
     return Fv

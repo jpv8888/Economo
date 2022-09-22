@@ -182,8 +182,8 @@ def sim_Fv(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100,
     
     return np.mean(F_v), np.mean(FDR_rec), np.mean(Rtot)
 
-def sim_Fv_Fig1(R_tot, t_stop=1000, refractory_period=2.5, N=100, 
-           out_refrac=0, FDR=None):
+def sim_Fv_Fig1(R_tot, t_stop=1000, refractory_period=2.5, N=100, out_refrac=0, 
+                FDR=None):
     
 
     if FDR == None:
@@ -231,6 +231,110 @@ def sim_Fv_Fig1(R_tot, t_stop=1000, refractory_period=2.5, N=100,
     # return np.mean(F_v)
     
     return np.mean(F_v), ISIs_tot, np.mean(Rtot)
+
+def sim_Fv_neurons(R_tot, t_stop=1000, refractory_period=2.5, N=100, neurons=1, 
+                   FDR=None):
+    
+
+    if FDR == None:
+        raise Exception('Must specify FDR')
+        
+    
+    F_v = np.zeros(N)
+    Rtot = np.zeros(N)
+    
+    rate_out = FDR*R_tot
+    rate_in = R_tot - rate_out
+    
+    rate_out = rate_out/neurons
+    
+    rate_in = pq.Quantity(rate_in, 'Hz')
+    rate_out = pq.Quantity(rate_out, 'Hz')
+    t_stop = pq.Quantity(t_stop, 's')
+    refractory_period = pq.Quantity(refractory_period, 'ms')
+
+        
+    clu_in = StationaryPoissonProcess(rate=rate_in, t_stop=t_stop, 
+                                      refractory_period=refractory_period)
+    
+    clu_outs = []
+    for _ in range(neurons):
+        clu_outs.append(StationaryPoissonProcess(rate=rate_out, t_stop=t_stop,
+                                                 refractory_period=refractory_period))
+
+    
+    
+    desc = "R_in = " + str(rate_in) + ", R_out = " + str(rate_out)
+    for i in tqdm(range(N), desc=desc):
+        
+        spks_in = clu_in.generate_spiketrain(as_array=True)
+        spks_out = []
+        for j in range(neurons):
+            spks_out.append(clu_outs[j].generate_spiketrain(as_array=True))
+        
+        spks_out = np.concatenate(spks_out)
+        
+        spks_tot = np.concatenate((spks_in, spks_out))
+        spks_tot = np.sort(spks_tot)
+        
+        ISIs = np.diff(spks_tot)
+        Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+        F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+        Rtot[i] = len(spks_tot)/t_stop
+    
+    # return np.mean(F_v)
+    
+    return np.mean(F_v)
+
+def sim_Fv_dist(R_tot, t_stop=1000, refractory_period=2.5, N=100, out_refrac=0, 
+                FDR=None):
+    
+
+    if FDR == None:
+        raise Exception('Must specify FDR')
+        
+    
+    F_v = np.zeros(N)
+    Rtot = np.zeros(N)
+    
+    rate_out = FDR*R_tot
+    rate_in = R_tot - rate_out
+    
+    rate_in = pq.Quantity(rate_in, 'Hz')
+    rate_out = pq.Quantity(rate_out, 'Hz')
+    t_stop = pq.Quantity(t_stop, 's')
+    refractory_period = pq.Quantity(refractory_period, 'ms')
+    if out_refrac != 0:
+        out_refrac = pq.Quantity(out_refrac, 'ms')
+        
+    clu_in = StationaryPoissonProcess(rate=rate_in, t_stop=t_stop, 
+                                      refractory_period=refractory_period)
+    
+    clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop)
+    if out_refrac != 0:
+        clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop,
+                                           refractory_period=out_refrac)
+    
+    ISIs_tot = []
+    
+    desc = "R_in = " + str(rate_in) + ", R_out = " + str(rate_out)
+    for i in tqdm(range(N), desc=desc):
+        
+        spks_in = clu_in.generate_spiketrain(as_array=True)
+        spks_out = clu_out.generate_spiketrain(as_array=True)
+        
+        spks_tot = np.concatenate((spks_in, spks_out))
+        spks_tot = np.sort(spks_tot)
+        
+        ISIs = np.diff(spks_tot)
+        ISIs_tot.append(ISIs)
+        Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+        F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+        Rtot[i] = len(spks_tot)/t_stop
+    
+    # return np.mean(F_v)
+    
+    return F_v
         
        
     # elif FDR != FDR_max:
@@ -328,6 +432,7 @@ def sim_Fv_PSTH2(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000,
     
     F_v = np.zeros(N)
     Rtot = np.zeros(N)
+    refractory_num = refractory_period/1000
     
     refractory_period = pq.Quantity(refractory_period, 'ms')
     
@@ -348,7 +453,7 @@ def sim_Fv_PSTH2(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000,
         clu_out = NonStationaryPoissonProcess(rate_signal=sig_out,
                                               refractory_period=out_refrac)
 
-        
+    ISI_locs = []    
     for i in tqdm(range(N)):
         
         spks_in = clu_in.generate_spiketrain(as_array=True)
@@ -374,12 +479,18 @@ def sim_Fv_PSTH2(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000,
         spks_tot = np.concatenate((spks_in, spks_out_sample))
         spks_tot = np.sort(spks_tot)
         
+        
         ISIs = np.diff(spks_tot)
+        for j, spk in enumerate(spks_tot):
+            if abs(spk - spks_tot[j-1]) < refractory_num:
+                ISI_locs.append(spk)
         Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
         F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
         Rtot[i] = len(spks_tot)/T
+    
+    F_v_locs = JV_utils.spikes_to_firing_rates(ISI_locs, N)
         
-    return np.mean(F_v), np.mean(Rtot)
+    return F_v_locs, np.mean(F_v), np.mean(Rtot)
     
     
 def sim_Fv_times(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100, 
