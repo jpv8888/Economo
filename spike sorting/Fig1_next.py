@@ -31,7 +31,7 @@ def kleinfeld_Fv(Rin, Rout, tviol=0.0025):
 
     return Fv
 
-Rtot = [1, 4, 16]
+Rtot = [1, 8, 20]
 FDRs = np.arange(0, 1.1, 0.1)
 
 economo_sim_Fv = np.zeros((len(FDRs), len(Rtot)))
@@ -65,19 +65,33 @@ for i, val in enumerate(FDRs_5):
 
 fig, ax = plt.subplots()
 
+from matplotlib import cm
+
+start = 0.0
+stop = 1.0
+number_of_lines= 3
+cm_subsection = np.linspace(start, stop, number_of_lines)
+
+colors = [ cm.copper(x) for x in cm_subsection ]
+
+colors = ['blue', 'green', 'red']
+colors_scat = ['darkblue', 'darkgreen', 'darkred']
+cmaps = ['Blues', 'Greens', 'Reds']
+
 for idx in range(0, 3):
 
     R_out = FDRs*Rtot[idx]
     R_in = Rtot[idx] - R_out
     
-    plt.scatter(FDRs, np.array(economo_sim_Fv[:,idx])*100, s=20, c='darkblue')
-    plt.scatter(FDRs[:6], np.array(kleinfeld_sim_Fv[:6,idx])*100, s=20, c='darkred')
-    plt.plot(FDRs, economo_Fv(R_in, R_out)*100, lw=3, c='blue', label='N = ∞')
-    plt.plot(FDRs[:6], kleinfeld_Fv(R_in[:6], R_out[:6])*100, lw=3, c='red', label='N = 1')
+    plt.scatter(FDRs, np.array(economo_sim_Fv[:,idx])*100, s=20, c=colors_scat[idx])
+    plt.scatter(FDRs[:6], np.array(kleinfeld_sim_Fv[:6,idx])*100, s=20, c=colors_scat[idx])
+    plt.plot(FDRs, economo_Fv(R_in, R_out)*100, lw=3, c=colors[idx], label='N = ∞')
+    plt.plot(FDRs[:6], kleinfeld_Fv(R_in[:6], R_out[:6])*100, lw=3, 
+             c=colors[idx], label='N = 1', ls='dashed')
     # plt.scatter(FDR_N, np.array(sim_Fv_N[:,idx])*100, s=20, c='black')
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    ax.set_ylim(-0.2, 4.2)
+    ax.set_ylim(-0.2, 5.2)
     # bottom_line = list(kleinfeld_Fv(R_in[:6], R_out[:6])*100) + \
         # list(np.array(sim_Fv_N[:,idx])*100) + [economo_Fv(R_in[-1], R_out[-1])*100]
     # plt.plot(FDRs[5:], bottom_line[5:], lw=3, c='black')
@@ -98,8 +112,9 @@ for idx in range(0, 3):
     
     lims = [ax.get_xlim(), ax.get_ylim()]
     lims = [item for t in lims for item in t]
-    im = ax.imshow([[1.,0.], [1.,0.]], interpolation ='bicubic', cmap = 'Purples',
-                   extent=lims, aspect='auto', clip_path = patch, clip_on = True)
+    im = ax.imshow([[0.,0.], [1.,0.]], interpolation ='bicubic', cmap = cmaps[idx],
+                   extent=lims, aspect='auto', clip_path = patch, clip_on = True,
+                   zorder=0)
 
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
@@ -109,16 +124,27 @@ plt.ylabel('% $ISI_{viol}$', fontsize=16)
 # plt.legend(prop={'size': 16})
 
 for col in sim_Fv_N_2.T:
-    plt.plot(FDRs_2, col*100, c='black', alpha=0.2, ls='--')
+    plt.plot(FDRs_2, col*100, c='black', alpha=0.4, ls='dotted', zorder=1)
 for col in sim_Fv_N_5.T:
-    plt.plot(FDRs_5, col*100, c='black', alpha=0.2, ls='--')
+    plt.plot(FDRs_5, col*100, c='black', alpha=0.4, ls='dotted', zorder=1)
     
 # plt.text(1.05, 0.15, '1 Hz', fontsize='16')
 # plt.text(0.8, 1.4, '10 Hz', fontsize='16')
 # plt.text(0.8, 3.5, '20 Hz', fontsize='16')
-plt.text(1.05, 0.15, '1 Hz', fontsize='16')
-plt.text(1.05, 0.95, '4 Hz', fontsize='16')
-plt.text(1.05, 3.9, '16 Hz', fontsize='16')
+# plt.text(1.05, 0.15, '1 Hz', fontsize='16')
+# plt.text(1.05, 0.95, '4 Hz', fontsize='16')
+# plt.text(1.05, 3.9, '16 Hz', fontsize='16')
+
+from matplotlib.lines import Line2D
+custom_lines = [Line2D([0], [0], c='k'),
+                Line2D([0], [0], c='k', ls='dotted'),
+                Line2D([0], [0], c='k', ls='dashed')]
+ax.legend(custom_lines, ['N = ∞', 'N = 2/5', 'N = 1'], prop={'size': 16})
+
+import matplotlib as mpl
+
+mpl.rcParams['image.composite_image'] = False
+plt.rcParams['svg.fonttype'] = 'none'
 plt.tight_layout()
 
 # %%
@@ -170,6 +196,15 @@ for i, val in enumerate(FDRs):
         F_v_economo[i, j] = economo_Fv(R_in[j], R_out[j])*100
         F_v_kleinfeld[i, j] = kleinfeld_Fv(R_in[j], R_out[j])*100
         
+from matplotlib import cm
+
+start = 0.0
+stop = 1.0
+number_of_lines= 3
+cm_subsection = np.linspace(start, stop, number_of_lines)
+
+c1, c2, c3 = [ cm.magma(x) for x in cm_subsection ]
+ 
 fig, ax1 = plt.subplots()
 plt.scatter(Rtot, economo_sim_Fv[0,:]*100, s=20, c='darkblue')
 plt.scatter(Rtot, kleinfeld_sim_Fv[0,:]*100, s=20, c='darkblue')
@@ -178,18 +213,18 @@ plt.scatter(Rtot, kleinfeld_sim_Fv[1,:]*100, s=20, c='darkgreen')
 plt.scatter(Rtot, economo_sim_Fv[2,:]*100, s=20, c='darkred')
 plt.scatter(Rtot, kleinfeld_sim_Fv[2,:]*100, s=20, c='darkred')
 plt.plot(Rtot, F_v_economo[0,:], lw=3, c='blue')
-plt.plot(Rtot, F_v_kleinfeld[0,:], lw=3, c='blue')
+plt.plot(Rtot, F_v_kleinfeld[0,:], lw=3, c='blue', ls='dashed')
 plt.plot(Rtot, F_v_economo[1,:], lw=3, c='green')
-plt.plot(Rtot, F_v_kleinfeld[1,:], lw=3, c='green')
+plt.plot(Rtot, F_v_kleinfeld[1,:], lw=3, c='green', ls='dashed')
 plt.plot(Rtot, F_v_economo[2,:], lw=3, c='red')
-plt.plot(Rtot, F_v_kleinfeld[2,:], lw=3, c='red')
+plt.plot(Rtot, F_v_kleinfeld[2,:], lw=3, c='red', ls='dashed')
 
-ax1.fill_between(Rtot, F_v_economo[0,:], F_v_kleinfeld[0,:], facecolor="none", 
-                hatch="+", edgecolor="k", linewidth=0.0, alpha=0.2)
-ax1.fill_between(Rtot, F_v_economo[1,:], F_v_kleinfeld[1,:], facecolor="none", 
-                hatch="+", edgecolor="k", linewidth=0.0, alpha=0.2)
-ax1.fill_between(Rtot, F_v_economo[2,:], F_v_kleinfeld[2,:], facecolor="none", 
-                hatch="+", edgecolor="k", linewidth=0.0, alpha=0.2)
+# ax1.fill_between(Rtot, F_v_economo[0,:], F_v_kleinfeld[0,:], facecolor="none", 
+#                 hatch="+", edgecolor="k", linewidth=0.0, alpha=0.2)
+# ax1.fill_between(Rtot, F_v_economo[1,:], F_v_kleinfeld[1,:], facecolor="none", 
+#                 hatch="+", edgecolor="k", linewidth=0.0, alpha=0.2)
+# ax1.fill_between(Rtot, F_v_economo[2,:], F_v_kleinfeld[2,:], facecolor="none", 
+#                 hatch="+", edgecolor="k", linewidth=0.0, alpha=0.2)
 #ax.spines['top'].set_visible(False)
 #ax.spines['right'].set_visible(False)
 ax2 = ax1.twiny() # ax1 and ax2 share y-axis
@@ -204,23 +239,24 @@ ax1.set_xlabel('$R_{tot}$ (Hz)', fontsize=16)
 ax1.set_ylabel('% $ISI_{viol}$', fontsize=16)
 # plt.xticks(fontsize=14)
 plt.yticks(fontsize=14)
-left_ticks= [0.0, 0.8, 1.6, 2.4, 3.2, 4.0]
+left_ticks= [0, 1, 2, 3, 4]
 ax1.set_yticks(left_ticks)
 ax1.set_yticklabels(left_ticks, fontsize=14)
 plt.grid(axis='y', which='both', ls ='--', alpha=0.3, lw=0.1)
 ax3.set_ylim(0-(3/64), 1+(3/64))
-right_ticks = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+right_ticks = [0.00, 0.25, 0.50, 0.75, 1.00]
 ax3.set_yticks(right_ticks)
 ax3.set_yticklabels(right_ticks, fontsize=14)
 
-ax1.spines['right'].set_color('violet')
-ax2.spines['right'].set_color('violet')
-ax3.spines['right'].set_color('violet')
-ax2.spines['top'].set_color('violet')
-ax1.spines['top'].set_color('violet')
-ax3.spines['top'].set_color('violet')
-ax2.tick_params(axis='x', colors='violet')
-ax3.tick_params(axis='y', colors='violet')
+alt_ax_color = 'orange'
+ax1.spines['right'].set_color(alt_ax_color)
+ax2.spines['right'].set_color(alt_ax_color)
+ax3.spines['right'].set_color(alt_ax_color)
+ax2.spines['top'].set_color(alt_ax_color)
+ax1.spines['top'].set_color(alt_ax_color)
+ax3.spines['top'].set_color(alt_ax_color)
+ax2.tick_params(axis='x', colors=alt_ax_color)
+ax3.tick_params(axis='y', colors=alt_ax_color)
 ax1.spines['top'].set_visible(False)
 ax1.spines['right'].set_visible(False)
 ax2.spines['right'].set_visible(False)
@@ -230,12 +266,30 @@ ax3.spines['top'].set_visible(False)
 ax3.spines['bottom'].set_visible(False)
 ax3.spines['left'].set_visible(False)
 
+cmaps = ['Blues', 'Greens', 'Reds']
+for i in range(3):
+    up_kleinfeld = np.vstack((Rtot, F_v_kleinfeld[i,:])).T
+    down_economo = np.flip(np.vstack((Rtot, F_v_economo[i,:])).T, axis=0)
+    straight_up = np.vstack((up_kleinfeld[-1], down_economo[0]))
+    path = Path(np.vstack((up_kleinfeld, straight_up, down_economo)))
+    patch = PathPatch(path, facecolor ='none', edgecolor='none')
+    
+    ax1.add_patch(patch)
+    # im = ax.imshow([[0.,1.], [0.,1.]], interpolation ='bilinear', cmap = plt.cm.gray,
+    #                clip_path = patch, clip_on = True)
+    
+    lims = [ax1.get_xlim(), ax1.get_ylim()]
+    lims = [item for t in lims for item in t]
+    im = ax1.imshow([[0.,0.], [1.,0.]], interpolation ='bicubic', cmap = cmaps[i],
+                   extent=lims, aspect='auto', clip_path = patch, clip_on = True)
+
 #plt.xscale('log')
-ax1.grid(axis='both', which='both', ls ='--', alpha=0.3)
-from matplotlib.lines import Line2D
-custom_lines = [Line2D([0], [0], c='k'),
-                Line2D([0], [0], c='k', ls='dashed')]
-# ax.legend(custom_lines, ['N = ∞', 'N = 1'], prop={'size': 16})
+ax1.grid(axis='both', which='both', ls ='--', alpha=0.4)
+# from matplotlib.lines import Line2D
+# custom_lines = [Line2D([0], [0], c='k'),
+#                 Line2D([0], [0], c='k', ls='dashed')]
+# # custom_lines.append('FDR')
+# L = ax1.legend(custom_lines, ['N = ∞', 'N = 1'], prop={'size': 16})
 # plt.text(21, 3, '50%', fontsize='16')
 # plt.text(21, 1.6, '20%', fontsize='16')
 # plt.text(21, 0.4, '5%', fontsize='16')
@@ -244,6 +298,10 @@ custom_lines = [Line2D([0], [0], c='k'),
 #plt.text(5.1, 0.1, '5%', fontsize='16')
 #plt.xlim(-1.0, 21.0)
 # plt.ylim(0, 1)
+import matplotlib as mpl
+
+mpl.rcParams['image.composite_image'] = False
+plt.rcParams['svg.fonttype'] = 'none'
 
 plt.tight_layout()
 

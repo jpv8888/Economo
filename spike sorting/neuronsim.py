@@ -490,7 +490,7 @@ def sim_Fv_PSTH2(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000,
     
     F_v_locs = JV_utils.spikes_to_firing_rates(ISI_locs, N)
         
-    return F_v_locs, np.mean(F_v), np.mean(Rtot)
+    return np.mean(F_v), np.mean(Rtot)
     
     
 def sim_Fv_times(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100, 
