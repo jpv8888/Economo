@@ -473,19 +473,24 @@ for idx in range(len(PSTHs_unit)):
         dots.append(np.dot(PSTHs_unit[idx], el))
         if dots[-1] + 0.5*np.dot(el, el) > best_dot:
             best_pair[0] = PSTHs_unit[idx]
-            best_pair[1] = PSTHs_unit[j+idx+1]
+            best_pair[1] = el
             best_dot = dots[-1] + 0.5*np.dot(el, el)
             
 from scipy import interpolate
+from scipy.signal import savgol_filter
 
 x = np.arange(len(best_pair[0]))
-cs1 = CubicSpline(x, best_pair[0])
-cs2 = CubicSpline(x, best_pair[1])
-xs = np.arange(0, 100, 0.001)
+cs1 = interpolate.InterpolatedUnivariateSpline(x, best_pair[0], k=5)
+cs2 = interpolate.InterpolatedUnivariateSpline(x, best_pair[1], k=5)
+xs = np.arange(0, 99, 0.001)
 
-plt.plot(xs, cs1(xs))
-plt.plot(xs, cs2(xs))
-#plt.plot(savgol_filter(best_pair[1], 25, 2))
+# plt.plot(xs, cs1(xs))
+# plt.plot(xs, cs2(xs))
+# plt.plot(savgol_filter(best_pair[0], 25, 3))
+# plt.plot(savgol_filter(best_pair[1], 25, 3))
+
+plt.plot(best_pair[0])
+plt.plot(best_pair[1])
             
         
 # %%
@@ -598,43 +603,51 @@ Fvs = []
 R_out_mags = []
 R_out_units = []
 new = []
-for i in range(10):
+pred_FDR_true = []
 
-    for j in range(10)[i+1:]:
+main_idx = 30
+other_idx = list(range(len(PSTHs1)))
+del other_idx[main_idx]
 
-        idx1 = i
-        idx2 = j
-        
-        FDR = 0.5
-        
-        Rin = PSTHs1[idx1]
-        
-        scale = minimize_scalar(Rout_scale_ob, args=[Rin, 10], 
-                                method='bounded', bounds=[0, 100]).x
-        Rin = Rin*scale
-        
-        Fv_temp, Rtot_temp = neuronsim.sim_Fv_PSTH2(Rin, PSTHs1[idx2], FDR=FDR)
-        
-        scale = minimize_scalar(Rout_scale_ob, 
-                                args=[PSTHs1[idx2], (FDR/(1-FDR))*np.average(Rin)],
-                                method='bounded', bounds=[0, 100]).x
-        
-        Rout = scale*PSTHs1[idx2]
-        R_out_mags.append(vector_mag(Rout))
-        Rtot =  Rin + Rout
-        R_out_units.append(Rout/vector_mag(Rout))
-        
-        Rin_out_dot.append(np.dot(Rin, Rout))
-        Rtot_out_dot.append(np.dot(Rtot, Rout))
-        new.append(np.dot(Rin, Rout) + 0.5*np.dot(Rout, Rout))
-        
-        Fv = Fv_temp
-        Fvs.append(Fv)
-        D = np.dot(Rtot/vector_mag(Rtot), Rout/vector_mag(Rout))
-        
-        pred_FDR.append(FDR_master(Fv, [np.average(Rtot)]*100, 
-                                   [1/10]*100, N=float('inf')))
-        Rtots.append(Rtot_temp)
+for second_idx in other_idx:
+
+    idx1 = main_idx
+    idx2 = second_idx
+    
+    FDR = 0.2
+    
+    Rin = PSTHs1[idx1]
+    
+    scale = minimize_scalar(Rout_scale_ob, args=[Rin, 10], 
+                            method='bounded', bounds=[0, 100]).x
+    Rin = Rin*scale
+    
+    Fv_temp, Rtot_temp = neuronsim.sim_Fv_PSTH2(Rin, PSTHs1[idx2], FDR=FDR, N=10000)
+    
+    scale = minimize_scalar(Rout_scale_ob, 
+                            args=[PSTHs1[idx2], (FDR/(1-FDR))*np.average(Rin)],
+                            method='bounded', bounds=[0, 100]).x
+    
+    Rout = scale*PSTHs1[idx2]
+    R_out_mags.append(vector_mag(Rout))
+    Rtot =  Rin + Rout
+    R_out_units.append(Rout/vector_mag(Rout))
+    
+    Rin_out_dot.append(np.dot(Rin, Rout))
+    Rtot_out_dot.append(np.dot(Rtot, Rout))
+    new.append(np.dot(Rin, Rout) + 0.5*np.dot(Rout, Rout))
+    
+    Fv = Fv_temp
+    Fvs.append(Fv)
+    D = np.dot(Rtot/vector_mag(Rtot), Rout/vector_mag(Rout))
+    
+    pred_FDR.append(FDR_master(Fv, [np.average(Rtot)]*100, 
+                               [1/10]*100, N=float('inf')))
+    
+    pred_FDR_true.append(FDR_master(Fv, Rtot, Rout/vector_mag(Rout), 
+                                    N=float('inf')))
+    
+    Rtots.append(Rtot_temp)
 
 # Fv_temp, Rtot_temp = neuronsim.sim_Fv_PSTH2([np.average(Rin)]*100, 
 #                                             [np.average(Rout)]*100, FDR=FDR)
@@ -643,6 +656,36 @@ for i in range(10):
 #                            N=float('inf')))
 
 # Rin_out_dot.append(1)
+
+# %%
+
+import JV_utils
+
+fig, ax = plt.subplots()
+center = np.average(Rin)*np.average(Rout) + 0.5*np.average(Rout)*np.average(Rout)
+plt.scatter((np.array(new)/100 - center)/center, pred_FDR, s=20, c='g')
+x = np.array(new)[np.invert(np.isnan(pred_FDR))]
+y = np.array(pred_FDR)[np.invert(np.isnan(pred_FDR))]
+y_pred, reg, R2 = JV_utils.lin_reg(x, y)
+temp = (x/100 - center)/center
+xs = (x/100 - center)/center
+ys = y_pred
+ys = JV_utils.sort_list_by_list(xs, ys)
+xs = sorted(xs)
+xs = [xs[0], xs[-1]]
+ys = [ys[0], ys[-1]]
+plt.plot(xs, ys, c='g', ls='dotted')
+ax.axvline(0, c='k', ls='--', alpha=0.3)
+ax.axhline(0.2, c='k', ls='--', alpha=0.3)
+plt.ylabel('Predicted FDR', fontsize=16)
+plt.xlabel(r'$\overline{R_{in}R_{out}}$ + $\frac{1}{2}$$\overline{R_{out}R_{out}}$', fontsize=16)
+plt.scatter((x/100 - center)/center, pred_FDR_true, s=10, marker='x', zorder=0, c='b')
+plt.xticks(fontsize=14)
+plt.yticks(fontsize=14)
+plt.text(0.4, 0.16,'$R^{}$ = {}'.format(2, str(round(R2, 2))), fontsize=16)
+plt.title('$Unit_{idx}$ = 30', fontsize=18)
+plt.tight_layout()
+
 
 # %%
 

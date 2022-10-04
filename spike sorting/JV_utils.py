@@ -45,16 +45,17 @@ def point_dist_to_line(x, y, a, b, c):
     return num/den
 
 def lin_reg(x, y):
-    if isinstance(x, list):
-        x = np.array(x)
-        x = x.reshape(-1, 1)
+
+    x = np.array(x)
+    x = x.reshape(-1, 1)
         
     y = np.array(y)
     y = y.reshape(-1, 1)
     reg = LinearRegression().fit(x, y)
     y_pred = reg.coef_*x + reg.intercept_
     print('R^2 = ' + str(reg.score(x, y)))
-    return y_pred, reg
+    R2 = reg.score(x, y)
+    return y_pred, reg, R2
 
 def scale_zero_to_x(data, x=1):
     min_data = min(data)
