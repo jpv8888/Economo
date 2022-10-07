@@ -476,21 +476,49 @@ for idx in range(len(PSTHs_unit)):
             best_pair[1] = el
             best_dot = dots[-1] + 0.5*np.dot(el, el)
             
+homo = False
+if homo == True:
+    best_dot = 1000
+    for idx in range(len(PSTHs_unit)):
+        other_PSTH = PSTHs_unit[idx+1:]
+        for j, el in enumerate(other_PSTH):
+            dots.append(np.dot(PSTHs_unit[idx], el))
+            homo = np.mean(PSTHs_unit[idx])*np.mean(el) + 0.5*np.mean(el)**2
+            if abs(dots[-1] + 0.5*np.dot(el, el) - homo) < best_dot:
+                best_pair[0] = PSTHs_unit[idx]
+                best_pair[1] = el
+                best_dot = abs(dots[-1] + 0.5*np.dot(el, el) - homo)
+    
+            
 from scipy import interpolate
 from scipy.signal import savgol_filter
 
+from scipy.ndimage import gaussian_filter1d
+
 x = np.arange(len(best_pair[0]))
-cs1 = interpolate.InterpolatedUnivariateSpline(x, best_pair[0], k=5)
-cs2 = interpolate.InterpolatedUnivariateSpline(x, best_pair[1], k=5)
-xs = np.arange(0, 99, 0.001)
+cs1 = interpolate.interp1d(x, best_pair[0])
+cs2 = interpolate.interp1d(x, best_pair[1])
+xs = np.arange(0, 99, 0.1)
+
+fig, ax = plt.subplots()
+plt.plot(gaussian_filter1d(cs1(xs), 40))
+plt.plot(gaussian_filter1d(cs2(xs), 40))
+ax.axes.get_xaxis().set_ticks([])
+ax.axes.get_yaxis().set_ticks([])
+ax.xaxis.set_ticks_position('none') 
+ax.yaxis.set_ticks_position('none')
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+
+
 
 # plt.plot(xs, cs1(xs))
 # plt.plot(xs, cs2(xs))
-# plt.plot(savgol_filter(best_pair[0], 25, 3))
-# plt.plot(savgol_filter(best_pair[1], 25, 3))
+# plt.plot(savgol_filter(best_pair[0], 31, 2))
+# plt.plot(savgol_filter(best_pair[1], 31, 2))
 
-plt.plot(best_pair[0])
-plt.plot(best_pair[1])
+# plt.plot(best_pair[0])
+# plt.plot(best_pair[1])
             
         
 # %%
@@ -605,7 +633,7 @@ R_out_units = []
 new = []
 pred_FDR_true = []
 
-main_idx = 30
+main_idx = 60
 other_idx = list(range(len(PSTHs1)))
 del other_idx[main_idx]
 
@@ -678,13 +706,134 @@ plt.plot(xs, ys, c='g', ls='dotted')
 ax.axvline(0, c='k', ls='--', alpha=0.3)
 ax.axhline(0.2, c='k', ls='--', alpha=0.3)
 plt.ylabel('Predicted FDR', fontsize=16)
-plt.xlabel(r'$\overline{R_{in}R_{out}}$ + $\frac{1}{2}$$\overline{R_{out}R_{out}}$', fontsize=16)
+plt.xlabel(r'$\overline{R_{in}R_{out}}$ + $\frac{1}{2}$$\overline{R_{out}R_{out}}$ (ẟ)', fontsize=16)
 plt.scatter((x/100 - center)/center, pred_FDR_true, s=10, marker='x', zorder=0, c='b')
 plt.xticks(fontsize=14)
 plt.yticks(fontsize=14)
-plt.text(0.4, 0.16,'$R^{}$ = {}'.format(2, str(round(R2, 2))), fontsize=16)
-plt.title('$Unit_{idx}$ = 30', fontsize=18)
+plt.text(0.6, 0.12,'$R^{}$ = {}'.format(2, str(round(R2, 2))), fontsize=16)
+plt.title('$Unit_{idx}$ = 60', fontsize=18)
+import matplotlib as mpl
+
+mpl.rcParams['image.composite_image'] = False
+plt.rcParams['svg.fonttype'] = 'none'
 plt.tight_layout()
+
+# %%
+
+
+
+def extract_quant(Rin, Rout):
+    center = np.average(Rin)*np.average(Rout) + 0.5*np.average(Rout)*np.average(Rout)
+    n = len(Rin)
+    x1 = np.dot(Rin, Rout)/n
+    x2 = np.dot(Rout, Rout)/n
+    return ((x1 + 0.5*x2) - center)/center
+
+quant_means = []
+for main_idx in range(len(PSTHs1)):
+
+    other_idx = list(range(len(PSTHs1)))
+    del other_idx[main_idx]
+    
+    quants = []
+    for second_idx in other_idx:
+        quants.append(extract_quant(PSTHs1[main_idx], PSTHs1[second_idx]))
+    
+    quant_means.append(np.mean(quants))
+    
+fig, ax = plt.subplots()
+plt.hist(quants)
+smallest = 5
+biggest = 60
+
+main_idx = smallest
+
+other_idx = list(range(len(PSTHs1)))
+del other_idx[main_idx]
+
+quants_small = []
+for second_idx in other_idx:
+    quants_small.append(extract_quant(PSTHs1[main_idx], PSTHs1[second_idx]))
+    
+main_idx = biggest
+
+other_idx = list(range(len(PSTHs1)))
+del other_idx[main_idx]
+
+quants_big = []
+for second_idx in other_idx:
+    quants_big.append(extract_quant(PSTHs1[main_idx], PSTHs1[second_idx]))
+
+fig, [ax1, ax2] = plt.subplots(1, 2)    
+ax1.hist(quants_small, edgecolor='k')
+ax2.hist(quants_big, edgecolor='k')
+ax1.set_xlim(-0.4, 1.4)
+ax2.set_xlim(-0.4, 1.4)
+ax1.set_ylim(0, 25)
+ax2.set_ylim(0, 25)
+ax1.axvline(0, c='k', ls='--', alpha=0.3, lw=3)
+ax2.axvline(0, c='k', ls='--', alpha=0.3, lw=3)
+ax1.tick_params(axis='x', labelsize=14)
+ax1.tick_params(axis='y', labelsize=14)
+ax2.tick_params(axis='x', labelsize=14)
+ax2.tick_params(axis='y', labelsize=14)
+plt.xlabel(r'$\overline{R_{in}}$ * $\overline{R_{out}}$ + $\frac{1}{2}$$\overline{R_{out}}$ * $\overline{R_{out}}$', fontsize=16)
+plt.tight_layout()
+    
+
+
+
+
+# min 5
+# max 60
+
+# %%
+
+pred_FDR = []
+Rtots = []
+Rin_out_dot = []
+Rtot_out_dot = []
+Fvs = []
+R_out_mags = []
+R_out_units = []
+new_means = []
+pred_FDR_true = []
+
+for main_idx in range(len(PSTHs1)):
+    other_idx = list(range(len(PSTHs1)))
+    del other_idx[main_idx]
+
+    new = []
+    for second_idx in other_idx:
+    
+        idx1 = main_idx
+        idx2 = second_idx
+        
+        FDR = 0.2
+        
+        Rin = PSTHs1[idx1]
+        
+        scale = minimize_scalar(Rout_scale_ob, args=[Rin, 10], 
+                                method='bounded', bounds=[0, 100]).x
+        Rin = Rin*scale
+        
+        scale = minimize_scalar(Rout_scale_ob, 
+                                args=[PSTHs1[idx2], (FDR/(1-FDR))*np.average(Rin)],
+                                method='bounded', bounds=[0, 100]).x
+        
+        Rout = scale*PSTHs1[idx2]
+        R_out_mags.append(vector_mag(Rout))
+        Rtot =  Rin + Rout
+        R_out_units.append(Rout/vector_mag(Rout))
+        
+        new_homo = np.mean(Rin)*np.mean(Rout) + 0.5*np.mean(Rout)*np.mean(Rout)
+        n = 100
+        new.append((((np.dot(Rin, Rout) + 0.5*np.dot(Rout, Rout))/n)-new_homo)/new_homo)
+        
+     
+        
+    new_means.append(np.mean(new))
+    
 
 
 # %%

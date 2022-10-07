@@ -375,6 +375,8 @@ hist = np.histogram(ISIs[0], bins=bins)[0]
 Rtots = [1, 4, 16]
 FDRs = [0.05, 0.25, 0.5]
 fig, ax = plt.subplots(3, 3)
+
+
 for i, Rtot in enumerate(Rtots):
     for j, FDR in enumerate(FDRs):
         ISIs = []
@@ -386,14 +388,33 @@ for i, Rtot in enumerate(Rtots):
         ISIs = np.concatenate(ISIs)
         ISIs = ISIs*1000
         
+        if i == 0:
+            c = 'b'
+            y_max = 6
+        elif i == 1:
+            c = 'g'
+            y_max = 40
+        else:
+            c = 'orange'
+            y_max = 600
+                    
         bins = np.arange(-25.5, 25.5, 0.5)
-        ax[i,j].hist(ISIs, bins, edgecolor='black', zorder=3)
+        ax[i,j].hist(ISIs, bins, facecolor=c, edgecolor='black', zorder=3)
         plt.grid(axis='y', which='both', ls ='--', alpha=0.3, lw=0.1)
+
+        ax[i,j].set_title('$ISI_{viol} = $' + str(round(Fv*100, 1)) + '%', 
+                          fontsize=18)
+        ax[i,j].set_xticks([-20, 20])
+        for tick in ax[i,j].xaxis.get_major_ticks():
+                tick.label.set_fontsize(16)
+        
+        ax[i,j].set_yticks([0, y_max])
+        for tick in ax[i,j].yaxis.get_major_ticks():
+                tick.label.set_fontsize(16)
         fig.patches.extend([plt.Rectangle((-2.5, 0), 5, ax[i,j].get_ylim()[1],
                                           color='r', alpha=0.2, zorder=1000, 
                                           fill=True, transform=ax[i,j].transData)])
-        ax[i,j].set_title('$ISI_{viol} = $' + str(round(Fv*100, 1)) + '%', 
-                          fontsize=18)
+       
 
 
 plt.tight_layout()
