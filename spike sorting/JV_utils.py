@@ -128,9 +128,3 @@ def smooth_max(x, y):
     return xx[np.argmax(smoothed)]
     
     
-    
-    
-    
-    
-    
-    

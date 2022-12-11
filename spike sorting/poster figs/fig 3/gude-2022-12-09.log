@@ -1,0 +1,3 @@
+03:41:49:540 [WARN]	Request Failed. ErrorCode: 32 errorMessage: Network Error, Send Request Failed. WinHTTP Connection Error. last error code = 12030 
+11:19:09:539 [WARN]	Request Failed. ErrorCode: 32 errorMessage: Network Error, Send Request Failed. WinHTTP Connection Error. last error code = 12030 
+16:05:37:794 [WARN]	proxy setting delay exceeds threshold: 0.942966 secs

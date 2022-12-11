@@ -182,6 +182,39 @@ def sim_Fv(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100,
     
     return np.mean(F_v), np.mean(FDR_rec), np.mean(Rtot)
 
+def sim_spikes(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100, 
+               out_refrac=0, FDR=None):
+    
+    rate_in = pq.Quantity(rate_in, 'Hz')
+    rate_out = pq.Quantity(rate_out, 'Hz')
+    t_stop = pq.Quantity(t_stop, 's')
+    refractory_period = pq.Quantity(refractory_period, 'ms')
+    if out_refrac != 0:
+        out_refrac = pq.Quantity(out_refrac, 'ms')
+        
+    clu_in = StationaryPoissonProcess(rate=rate_in, t_stop=t_stop, 
+                                      refractory_period=refractory_period)
+    
+    clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop)
+    if out_refrac != 0:
+        clu_out = StationaryPoissonProcess(rate=rate_out, t_stop=t_stop,
+                                           refractory_period=out_refrac)
+        
+    spikes = []
+    
+    desc = "R_in = " + str(rate_in) + ", R_out = " + str(rate_out)
+    for i in tqdm(range(N), desc=desc):
+        
+        spks_in = clu_in.generate_spiketrain(as_array=True)
+        spks_out = clu_out.generate_spiketrain(as_array=True)
+        
+        spks_tot = np.concatenate((spks_in, spks_out))
+        spks_tot = np.sort(spks_tot)
+        
+        spikes.append(list(spks_tot))
+  
+    return spikes
+
 def sim_Fv_Fig1(R_tot, t_stop=1000, refractory_period=2.5, N=100, out_refrac=0, 
                 FDR=None):
     
@@ -264,6 +297,7 @@ def sim_Fv_neurons(R_tot, t_stop=1000, refractory_period=2.5, N=100, neurons=1,
 
     
     
+    spks_full = []
     desc = "R_in = " + str(rate_in) + ", R_out = " + str(rate_out)
     for i in tqdm(range(N), desc=desc):
         
@@ -276,6 +310,7 @@ def sim_Fv_neurons(R_tot, t_stop=1000, refractory_period=2.5, N=100, neurons=1,
         
         spks_tot = np.concatenate((spks_in, spks_out))
         spks_tot = np.sort(spks_tot)
+        spks_full.append(spks_tot)
         
         ISIs = np.diff(spks_tot)
         Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
@@ -284,7 +319,7 @@ def sim_Fv_neurons(R_tot, t_stop=1000, refractory_period=2.5, N=100, neurons=1,
     
     # return np.mean(F_v)
     
-    return np.mean(F_v)
+    return np.mean(F_v), spks_full
 
 def sim_Fv_dist(R_tot, t_stop=1000, refractory_period=2.5, N=100, out_refrac=0, 
                 FDR=None):
@@ -453,7 +488,7 @@ def sim_Fv_PSTH2(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000,
         clu_out = NonStationaryPoissonProcess(rate_signal=sig_out,
                                               refractory_period=out_refrac)
 
-    ISI_locs = []    
+    spks_full = []    
     for i in tqdm(range(N)):
         
         spks_in = clu_in.generate_spiketrain(as_array=True)
@@ -479,18 +514,175 @@ def sim_Fv_PSTH2(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000,
         spks_tot = np.concatenate((spks_in, spks_out_sample))
         spks_tot = np.sort(spks_tot)
         
-        
         ISIs = np.diff(spks_tot)
-        for j, spk in enumerate(spks_tot):
-            if abs(spk - spks_tot[j-1]) < refractory_num:
-                ISI_locs.append(spk)
         Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
         F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
         Rtot[i] = len(spks_tot)/T
-    
-    F_v_locs = JV_utils.spikes_to_firing_rates(ISI_locs, N)
         
-    return np.mean(F_v), np.mean(Rtot)
+        
+        spks_full.append(spks_tot)
+        
+    
+    spks_full = np.concatenate(spks_full)
+        
+    return np.mean(F_v), JV_utils.spikes_to_firing_rates(spks_full, N)
+
+# simulate two neurons with PSTHs being intermixed
+def sim_Fv_PSTH3(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000, 
+                 out_refrac=0, FDR=1):
+    
+    F_v = np.zeros(N)
+    Rtot = np.zeros(N)
+    refractory_num = refractory_period/1000
+    
+    refractory_period = pq.Quantity(refractory_period, 'ms')
+    
+    n = len(PSTH_in)
+    f = n/T
+    
+    if out_refrac != 0:
+        out_refrac = pq.Quantity(out_refrac, 'ms')
+    
+    sig_in = AnalogSignal(PSTH_in, units='Hz', sampling_rate=f*pq.Hz)
+    sig_out = AnalogSignal(PSTH_out, units='Hz', sampling_rate=f*pq.Hz)
+    
+    clu_in = NonStationaryPoissonProcess(rate_signal=sig_in,
+                                         refractory_period=refractory_period)
+    
+    clu_out = NonStationaryPoissonProcess(rate_signal=sig_out)
+    if out_refrac != 0:
+        clu_out = NonStationaryPoissonProcess(rate_signal=sig_out,
+                                              refractory_period=out_refrac)
+
+    for i in tqdm(range(N)):
+        
+        spks_in = clu_in.generate_spiketrain(as_array=True)
+        spks_out = clu_out.generate_spiketrain(as_array=True)
+        
+        spks_tot = np.concatenate((spks_in, spks_out))
+        spks_tot = np.sort(spks_tot)
+        
+        ISIs = np.diff(spks_tot)
+        Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+        F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+        Rtot[i] = len(spks_tot)/T
+        
+    return np.mean(F_v)
+
+# simulate two neurons with PSTHs being intermixed
+def sim_Fv_PSTH4(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000, 
+                 out_refrac=2.5, neurons=1):
+    
+    F_v = np.zeros(N)
+    Rtot = np.zeros(N)
+    
+    if neurons != float('inf'):
+        neurons = int(neurons)
+        
+    if neurons == float('inf'):
+        out_refrac = 0
+        neurons = 1
+    
+    refractory_period = pq.Quantity(refractory_period, 'ms')
+    
+    n = len(PSTH_in)
+    f = n/T
+    
+    PSTH_out = PSTH_out/neurons
+    out_refrac = pq.Quantity(out_refrac, 'ms')
+    
+    sig_in = AnalogSignal(PSTH_in, units='Hz', sampling_rate=f*pq.Hz)
+    sig_out = AnalogSignal(PSTH_out, units='Hz', sampling_rate=f*pq.Hz)
+    
+    clu_in = NonStationaryPoissonProcess(rate_signal=sig_in,
+                                         refractory_period=refractory_period)
+    
+    clu_outs = []
+    for _ in range(neurons):
+        clu_outs.append(NonStationaryPoissonProcess(rate_signal=sig_out,
+                                              refractory_period=out_refrac))
+
+    for i in tqdm(range(N)):
+        
+        spks_in = clu_in.generate_spiketrain(as_array=True)
+        spks_out = []
+        for j in range(neurons):
+            spks_out.append(clu_outs[j].generate_spiketrain(as_array=True))
+        
+        spks_out = np.concatenate(spks_out)
+        
+        spks_tot = np.concatenate((spks_in, spks_out))
+        spks_tot = np.sort(spks_tot)
+        
+        ISIs = np.diff(spks_tot)
+        Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+        F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+        Rtot[i] = len(spks_tot)/T
+        
+    return np.mean(F_v)
+
+# simulate two neurons with PSTHs being intermixed
+def sim_spikes_PSTH(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000, 
+                    out_refrac=0, FDR=1):
+    
+    F_v = np.zeros(N)
+    Rtot = np.zeros(N)
+    
+    refractory_period = pq.Quantity(refractory_period, 'ms')
+    
+    n = len(PSTH_in)
+    f = n/T
+    
+    if out_refrac != 0:
+        out_refrac = pq.Quantity(out_refrac, 'ms')
+    
+    sig_in = AnalogSignal(PSTH_in, units='Hz', sampling_rate=f*pq.Hz)
+    sig_out = AnalogSignal(PSTH_out, units='Hz', sampling_rate=f*pq.Hz)
+    
+    clu_in = NonStationaryPoissonProcess(rate_signal=sig_in,
+                                         refractory_period=refractory_period)
+    
+    clu_out = NonStationaryPoissonProcess(rate_signal=sig_out)
+    if out_refrac != 0:
+        clu_out = NonStationaryPoissonProcess(rate_signal=sig_out,
+                                              refractory_period=out_refrac)
+
+    spks_full = []    
+    for i in tqdm(range(N)):
+        
+        spks_in = clu_in.generate_spiketrain(as_array=True)
+        spks_out = clu_out.generate_spiketrain(as_array=True)
+        
+        if FDR != 1:
+            samples = round((FDR/(1-FDR))*len(spks_in))
+        else:
+            samples = len(spks_out)
+        
+        done = 0
+        
+        if samples <= len(spks_out):
+            done = 1
+            
+        while done == 0:
+            spks_out_old = spks_out
+            spks_out_new = clu_out.generate_spiketrain(as_array=True)
+            spks_out = np.concatenate((spks_out_old, spks_out_new))
+            spks_out = np.sort(spks_out)
+            if samples <= len(spks_out):
+                done = 1
+        
+        spks_out_sample = sample(list(spks_out), samples)
+        
+        spks_tot = np.concatenate((spks_in, spks_out_sample))
+        spks_tot = np.sort(spks_tot)
+        
+        ISIs = np.diff(spks_tot)
+        Nviols = sum(pq.Quantity(ISIs, 's') < refractory_period)
+        F_v[i] = Nviols/len(spks_tot) if len(spks_tot) != 0 else 0
+        Rtot[i] = len(spks_tot)/T
+        spks_full.append(spks_tot)
+        
+    return spks_full
     
     
 def sim_Fv_times(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100, 

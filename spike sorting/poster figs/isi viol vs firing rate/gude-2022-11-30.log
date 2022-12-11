@@ -1,0 +1,5 @@
+04:08:51:475 [WARN]	Request Failed. ErrorCode: 29 errorMessage: Timeout, Send Request Failed t=7504783
+11:04:09:024 [WARN]	WGudeRequest::applyAutoDetectProxyAutoConfigSettings Failed to autodetect proxy settings. The operation completed successfully.
+, last error code = 0 
+12:04:42:357 [WARN]	Request Failed. ErrorCode: 112007 errorMessage: Platform Status, Send Request Failed. WinHTTP Name Not Resolved. last error code = 12007 
+16:15:15:007 [WARN]	Request Failed. ErrorCode: 112007 errorMessage: Platform Status, Send Request Failed. WinHTTP Name Not Resolved. last error code = 12007 

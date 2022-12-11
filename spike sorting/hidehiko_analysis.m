@@ -54,7 +54,7 @@ writematrix(Rtot_full,'Rtot.csv')
 writematrix(F_v_full,'F_v.csv')
 
 %% asdf
-myFolder = 'C:\Users\jpv88\OneDrive\Documents\GitHub\Chand-Lab\SiliconProbeData\FixedDelayTask\';
+myFolder = 'C:\Users\jpv88\OneDrive\Documents\GitHub\Economo\spike sorting\Data\Hidehiko 2019\SiliconProbeData\SiliconProbeData\FixedDelayTask\';
 filePattern = fullfile(myFolder, '*.mat');
 theFiles = dir(filePattern);
 names = {theFiles.name};
@@ -63,6 +63,7 @@ spikes_full = {};
 trials_full = {};
 ranges_full = [];
 session_full = [];
+unit_full = struct([]);
 for i = 1:length(names)
     unit = load(strcat(myFolder,names{i})).unit;
     session_full = vertcat(session_full,repelem(i-1,length(unit))');
@@ -70,12 +71,59 @@ for i = 1:length(names)
     spikes_full = vertcat(spikes_full,spikes');
     trials_full = vertcat(trials_full,trials');
     ranges_full = vertcat(ranges_full,ranges);
+    unit_full = [unit_full, unit];
 end
 
 writecell(spikes_full,'spikes.csv')
 writecell(trials_full,'trials.csv')
 writematrix(ranges_full,'ranges.csv')
 writematrix(session_full,'sessions.csv')
+%%
+num_bins = 100;
+T = 6;
+tau = 0.0025;
+
+PSTHs = zeros(length(spikes_full), num_bins);
+
+for i=1:length(spikes_full)
+    num_trials = trials_full{i}(end);
+    PSTHs(i,:) = genPSTH(spikes_full{i}, num_trials, T, num_bins);
+end
+
+ISI_viol = zeros(length(spikes_full),1);
+
+for i=1:length(spikes_full)
+    num_spikes = length(spikes_full{i});
+    num_viol = sum(abs(diff(spikes_full{i})) < tau);
+    ISI_viol(i) = num_viol/num_spikes;
+end
+
+%% Recording times
+
+times = zeros(length(ranges_full), 1);
+for i = 1:length(ranges_full)
+    range = ranges_full(i,:);
+    times(i) = range(end) - range(1) + 1;
+end
+
+nans = [44, 144, 180, 311, 332, 388, 430, 554, 638, 640, 643, 699, 732];
+times_nan = zeros(length(nans), 1);
+for i = 1:length(times_nan)
+    range = ranges_full(nans(i),:);
+    times_nan(i) = range(end) - range(1) + 1;
+end
+
+num_spikes = zeros(755, 1);
+for i = 1:755
+    num_spikes(i) = length(spikes_full{i});
+end
+
+num_spikes_nan = zeros(length(nans), 1);
+for i = 1:length(num_spikes_nan)
+    num_spikes_nan(i) = length(spikes_full{nans(i)});
+end
+
+
 %% Functions
 
 function [Rtot,F_v] = extract_Rtot_Fv(unit)
@@ -123,6 +171,20 @@ function [spikes, trials, ranges] = extract_times(unit)
         ranges(i,:) = range;
     end
     
+end
+
+function bins = genPSTH(spikes, n, T, N)
+    delta = T/N;
+    bins = zeros(N,1);
+    for i=1:N
+        for j=1:length(spikes)
+            if (spikes(j) >= (i-1)*delta) && (spikes(j) < (i)*delta)
+                bins(i) = bins(i) + 1;
+            end
+        end
+    end 
+
+    bins = bins/(delta*n);
 end
 
 
