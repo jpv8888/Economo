@@ -112,8 +112,9 @@ PSTHs_unit = np.zeros(np.shape(PSTHs))
 
 for i in range(N):
     PSTHs_unit[i,:] = PSTHs[i,:]/np.linalg.norm(PSTHs[i,:])
-    
-FDRs = []
+   
+one_FDRs = []
+inf_FDRs = []
 for i in tqdm(range(N)):
     
     other_idx = list(range(N))
@@ -123,22 +124,112 @@ for i in tqdm(range(N)):
     others_unit = others_mean/np.linalg.norm(others_mean)
     
     inf_FDR = FDR_master(ISI_viol[i], PSTHs[i,:], others_unit, N=float('inf'))
+    if np.isnan(inf_FDR):
+        inf_FDRs.append(1)
+    else:
+        inf_FDRs.append(inf_FDR)
     
-    one_FDRs = []
+    unit_FDRs = []
     for j in other_idx:
         temp = FDR_master(ISI_viol[i], PSTHs[i,:], PSTHs_unit[j,:], N=1)
-        if not np.isnan(temp):
-            one_FDRs.append(temp)
-        
-    one_FDR = np.mean(one_FDRs)
-    if not np.isnan(inf_FDR) and not np.isnan(one_FDR):
-        FDRs.append(np.mean((inf_FDR, one_FDR)))
-    elif np.isnan(inf_FDR) and not np.isnan(one_FDR):
-        FDRs.append(one_FDR)
-    elif not np.isnan(inf_FDR) and np.isnan(one_FDR):
-        FDRs.append(inf_FDR)
+        if np.isnan(temp):
+            unit_FDRs.append(0.5)
+        else:
+            unit_FDRs.append(temp)
+    
+    one_FDRs.append(np.mean(unit_FDRs))
+
+
+FDRs = [np.mean([el1, el2]) for el1, el2 in zip(one_FDRs, inf_FDRs)]
+
+# %% Economo 2018
+
+mat_contents = sio.loadmat('economo_PSTHs')
+PSTHs = mat_contents['PSTHs']
+mat_contents = sio.loadmat('economo_ISIviol')
+ISI_viol = mat_contents['ISI_viol']
+
+N = len(PSTHs)
+
+PSTHs_unit = np.zeros(np.shape(PSTHs))
+
+for i in range(N):
+    PSTHs_unit[i,:] = PSTHs[i,:]/np.linalg.norm(PSTHs[i,:])
+   
+one_FDRs = []
+inf_FDRs = []
+for i in tqdm(range(N)):
+    
+    other_idx = list(range(N))
+    del other_idx[i]
+    others_PSTH = PSTHs[other_idx,:]
+    others_mean = np.mean(others_PSTH, axis=0)
+    others_unit = others_mean/np.linalg.norm(others_mean)
+    
+    inf_FDR = FDR_master(ISI_viol[i], PSTHs[i,:], others_unit, N=float('inf'))
+    if np.isnan(inf_FDR):
+        inf_FDRs.append(1)
     else:
-        FDRs.append(float('nan'))
+        inf_FDRs.append(inf_FDR)
+    
+    unit_FDRs = []
+    for j in other_idx:
+        temp = FDR_master(ISI_viol[i], PSTHs[i,:], PSTHs_unit[j,:], N=1)
+        if np.isnan(temp):
+            unit_FDRs.append(0.5)
+        else:
+            unit_FDRs.append(temp)
+    
+    one_FDRs.append(np.mean(unit_FDRs))
+
+
+FDRs = [np.mean([el1, el2]) for el1, el2 in zip(one_FDRs, inf_FDRs)]
+
+# %% Steinmetz 2019
+
+PSTHs1 = np.load('steinmetz_PSTHs1.npy')
+PSTHs2 = np.load('steinmetz_PSTHs2.npy')
+ISI_viol1 = np.load('steinmetz_ISIviol1.npy')
+ISI_viol2 = np.load('steinmetz_ISIviol2.npy')
+
+PSTHs = np.vstack((PSTHs1, PSTHs2))
+ISI_viol = np.concatenate((ISI_viol1, ISI_viol2))
+
+N = len(PSTHs)
+
+PSTHs_unit = np.zeros(np.shape(PSTHs))
+
+for i in range(N):
+    PSTHs_unit[i,:] = PSTHs[i,:]/np.linalg.norm(PSTHs[i,:])
+   
+one_FDRs = []
+inf_FDRs = []
+for i in tqdm(range(N)):
+    
+    other_idx = list(range(N))
+    del other_idx[i]
+    others_PSTH = PSTHs[other_idx,:]
+    others_mean = np.mean(others_PSTH, axis=0)
+    others_unit = others_mean/np.linalg.norm(others_mean)
+    
+    inf_FDR = FDR_master(ISI_viol[i], PSTHs[i,:], others_unit, N=float('inf'))
+    if np.isnan(inf_FDR):
+        inf_FDRs.append(1)
+    else:
+        inf_FDRs.append(inf_FDR)
+    
+    unit_FDRs = []
+    for j in other_idx:
+        temp = FDR_master(ISI_viol[i], PSTHs[i,:], PSTHs_unit[j,:], N=1)
+        if np.isnan(temp):
+            unit_FDRs.append(0.5)
+        else:
+            unit_FDRs.append(temp)
+    
+    one_FDRs.append(np.mean(unit_FDRs))
+
+
+FDRs = [np.mean([el1, el2]) for el1, el2 in zip(one_FDRs, inf_FDRs)]
         
 # %%
 
@@ -171,8 +262,9 @@ PSTHs_unit = np.zeros(np.shape(PSTHs))
 for i in range(N):
     PSTHs_unit[i,:] = PSTHs[i,:]/np.linalg.norm(PSTHs[i,:])
     
+
+one_FDRs = []
 inf_FDRs = []
-FDRs = []
 for i in tqdm(range(N)):
     
     other_idx = list(range(N))
@@ -182,29 +274,32 @@ for i in tqdm(range(N)):
     others_unit = others_mean/np.linalg.norm(others_mean)
     
     inf_FDR = FDR_master(ISI_viol[i], PSTHs[i,:], others_unit, N=float('inf'))
-    inf_FDRs.append(inf_FDR)
+    if np.isnan(inf_FDR):
+        inf_FDRs.append(1)
+    else:
+        inf_FDRs.append(inf_FDR)
     
-    one_FDRs = []
-    max_dot = 0
-    idx = None
+    unit_FDRs = []
     for j in other_idx:
         temp = FDR_master(ISI_viol[i], PSTHs[i,:], PSTHs_unit[j,:], N=1)
-        dot = np.dot(PSTHs_unit[179], PSTHs_unit[j])
-        if dot > max_dot:
-            max_dot = dot
-            idx = j
-        if not np.isnan(temp):
-            one_FDRs.append(temp)
+        if np.isnan(temp):
+            unit_FDRs.append(0.5)
+        else:
+            unit_FDRs.append(temp)
+    
+    one_FDRs.append(np.mean(unit_FDRs))
         
-    one_FDR = np.mean(one_FDRs)
-    if not np.isnan(inf_FDR) and not np.isnan(one_FDR):
-        FDRs.append(np.mean((inf_FDR, one_FDR)))
-    elif np.isnan(inf_FDR) and not np.isnan(one_FDR):
-        FDRs.append(one_FDR)
-    elif not np.isnan(inf_FDR) and np.isnan(one_FDR):
-        FDRs.append(inf_FDR)
-    else:
-        FDRs.append(float('nan'))
+    # one_FDR = np.mean(one_FDRs)
+    # if not np.isnan(inf_FDR) and not np.isnan(one_FDR):
+    #     FDRs.append(np.mean((inf_FDR, one_FDR)))
+    # elif np.isnan(inf_FDR) and not np.isnan(one_FDR):
+    #     FDRs.append(one_FDR)
+    # elif not np.isnan(inf_FDR) and np.isnan(one_FDR):
+    #     FDRs.append(inf_FDR)
+    # else:
+    #     FDRs.append(float('nan'))
+
+FDRs = [np.mean([el1, el2]) for el1, el2 in zip(one_FDRs, inf_FDRs)]
         
 # %%
 

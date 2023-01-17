@@ -20,9 +20,9 @@ clusters_str = 'spikes.clusters.npy'
 times_str = 'spikes.times.npy'
 goCue_times_str = 'trials.goCue_times.npy'
 
-clusters = np.load(exps[1] + '/' + clusters_str)
-times = np.load(exps[1] + '/' + times_str)
-goCue_times = np.load(exps[1] + '/' + goCue_times_str)
+clusters = np.load(exps[2] + '/' + clusters_str)
+times = np.load(exps[2] + '/' + times_str)
+goCue_times = np.load(exps[2] + '/' + goCue_times_str)
 
 # %%
 
@@ -62,7 +62,7 @@ for i, clust in enumerate(tqdm(spikes)):
     PSTH = JV_utils.spikes_to_firing_rates(trials_flat, num_trials, T=3, N=num_bins)
     PSTHs[i,:] = PSTH
     
-np.save(exps[1] + '/' + 'PSTHs.npy', PSTHs)
+np.save(exps[2] + '/' + 'PSTHs.npy', PSTHs)
     
 
 

@@ -208,12 +208,16 @@ def sim_spikes(rate_in, rate_out, t_stop=1000, refractory_period=2.5, N=100,
         spks_in = clu_in.generate_spiketrain(as_array=True)
         spks_out = clu_out.generate_spiketrain(as_array=True)
         
+        spike_ids = np.concatenate((np.zeros(len(spks_in)), np.ones(len(spks_out))))
         spks_tot = np.concatenate((spks_in, spks_out))
-        spks_tot = np.sort(spks_tot)
+        sort_idx = spks_tot.argsort()
+        spks_tot = spks_tot[sort_idx]
+        ids_sort = spike_ids[sort_idx]
         
         spikes.append(list(spks_tot))
   
-    return spikes
+    return spikes, ids_sort
+
 
 def sim_Fv_Fig1(R_tot, t_stop=1000, refractory_period=2.5, N=100, out_refrac=0, 
                 FDR=None):

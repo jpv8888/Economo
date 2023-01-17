@@ -124,12 +124,9 @@ def economo_eq(Rtot, F_v, tviol=0.0025):
 @np.vectorize
 def kleinfeld_eq(Rtot, F_v, tviol=0.0025):
 
-    
     a = -2*tviol*Rtot
     b = 2*tviol*Rtot
     c = -F_v
-    
-
     
     if Rtot != 0:
         FDR = (-b + (b**2 - 4*a*c)**(1/2))/(2*a)
@@ -143,8 +140,6 @@ def kleinfeld_eq(Rtot, F_v, tviol=0.0025):
         FDR = 0.5
 
     return FDR
-
-
 
 FDR_eq = []
 for i in range(len(rates_full)):
