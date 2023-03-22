@@ -18,7 +18,8 @@ from scipy.stats import cauchy
 
 mat_contents = sio.loadmat('hidehiko_PSTHs')
 PSTHs = mat_contents['PSTHs']
-PSTHs = np.delete(PSTHs)
+# index 512 gets kind of buggy when you try to scale it
+PSTHs = np.delete(PSTHs, 512, 0)
 
 def Rout_scale_ob(scale, args):
     Rout_old, Rout_avg_new = args
@@ -94,11 +95,13 @@ for k in ks:
 
 k = 1000
 
-scales = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25]
-locs = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25]
+scales = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.3]
+locs = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.3]
 FDR_avg = np.zeros((len(locs), len(scales)))
 FDR_avg_old = np.zeros((len(locs), len(scales)))
 FDR_dist_true = np.zeros((len(locs), len(scales)))
+FDR_median = np.zeros((len(locs), len(scales)))
+FDR_true_median = np.zeros((len(locs), len(scales)))
 
 
 N_con = [1, 2, 5, 10]
@@ -165,6 +168,8 @@ for m, loc in enumerate(locs):
         pred_FDR_old = pred_FDR
         
         FDR_avg_old[m,j] = np.mean(pred_FDR)
+        FDR_median[m,j] = np.median(pred_FDR)
+        FDR_true_median[m,j] = np.median(FDR_dist)
         
         nan_mask = (pred_FDR == 0.75)
         len_mask = sum(nan_mask)
@@ -190,3 +195,30 @@ plt.plot([0, 0.4], [0, 0.4], ls='--', alpha=0.5)
 
 # new_error = FDR_avg - FDR_dist_true
 # old_error = FDR_avg_old - FDR_dist_true
+
+# %%
+
+plt.scatter(FDR_true_median, FDR_median)
+
+plt.xlim(0, 0.4)
+plt.ylim(0, 0.4)
+plt.plot([0, 0.4], [0, 0.4], 'k', ls='--')
+plt.xlabel('True Median FDR')
+plt.ylabel('Predicted Median FDR')
+plt.title('MEDIAN', fontsize=18)
+
+plt.tight_layout()
+
+# %%
+
+plt.scatter(FDR_dist_true, FDR_avg_old)
+
+plt.xlim(0, 0.4)
+plt.ylim(0, 0.4)
+plt.plot([0, 0.4], [0, 0.4], 'k', ls='--')
+plt.xlabel('True Mean FDR')
+plt.ylabel('Predicted Mean FDR')
+
+plt.title('MEAN', fontsize=18)
+
+plt.tight_layout()

@@ -28,7 +28,7 @@ def spikes_to_firing_rates(spikes, n, T=6, N=100):
     # bins = savgol_filter(bins, 11, 4)
     return bins
 
-# n is number of trials, T is trial length bin_size input in milliseconds
+# n is number of trials, T is trial length, bin_size input in milliseconds
 def gen_PSTH(spikes, n, T, bin_size):
     
     spikes = np.array(spikes)
@@ -229,6 +229,8 @@ def pred_FDR(PSTHs, ISI_viol):
     
     
     return FDRs
+
+
 
 
     

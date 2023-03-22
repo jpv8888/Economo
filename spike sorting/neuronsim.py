@@ -573,7 +573,7 @@ def sim_Fv_PSTH3(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000,
         
     return np.mean(F_v)
 
-# simulate two neurons with PSTHs being intermixed
+# simulate multiple neurons with PSTHs being intermixed
 def sim_Fv_PSTH4(PSTH_in, PSTH_out, T=6, refractory_period=2.5, N=1000, 
                  out_refrac=2.5, neurons=1):
     
